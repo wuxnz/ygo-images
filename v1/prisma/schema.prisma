@@ -1,0 +1,158 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+    provider = "prisma-client-js"
+}
+
+datasource db {
+    provider = "mongodb"
+    url      = env("DATABASE_URL")
+}
+
+
+model Account {
+    id                String  @id @default(auto()) @map("_id") @db.ObjectId
+    userId            String
+    type              String
+    provider          String
+    providerAccountId String
+    refresh_token     String?
+    access_token      String?
+    expires_at        Int?
+    token_type        String?
+    scope             String?
+    id_token          String?
+    session_state     String?
+    user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    @@unique([provider, providerAccountId])
+}
+
+model Session {
+    id           String   @id @default(auto()) @map("_id") @db.ObjectId
+    sessionToken String   @unique
+    userId       String
+    expires      DateTime
+    user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+    id         String   @id @default(auto()) @map("_id") @db.ObjectId
+    identifier String
+    token      String   @unique
+    expires    DateTime
+
+    @@unique([identifier, token])
+}
+
+model Post {
+    id        String   @id @default(auto()) @map("_id") @db.ObjectId
+    name      String
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    createdBy   User   @relation(fields: [createdById], references: [id])
+    createdById String
+
+    @@index([name])
+}
+
+model Tournament {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  size        Int
+  bracketType String
+  rules       String
+  prize       String
+  startDate   DateTime
+  endDate     DateTime
+  organizer   User     @relation(fields: [organizerId], references: [id], name: "TournamentOrganizers")
+  organizerId String
+  creatorId   String   // Add creatorId field
+  participants TournamentParticipant[]
+  matches     Match[]
+  started     Boolean  @default(false)
+}
+
+enum MatchStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  BYE
+}
+
+model Match {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  tournament  Tournament @relation(fields: [tournamentId], references: [id])
+  tournamentId String  @db.ObjectId
+  round       Int
+  position    Int
+  player1     User?    @relation("Player1Matches", fields: [player1Id], references: [id])
+  player1Id   String?
+  player2     User?    @relation("Player2Matches", fields: [player2Id], references: [id])
+  player2Id   String?
+  winner      User?    @relation("WinnerMatches", fields: [winnerId], references: [id])
+  winnerId    String?
+  player1Score Int?
+  player2Score Int?
+  status      MatchStatus @default(SCHEDULED)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model User {
+  id            String    @id @default(uuid()) @map("_id")
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  accounts      Account[]
+  sessions      Session[]
+  posts         Post[]
+  tournamentParticipants TournamentParticipant[] @relation("TournamentParticipants")
+  organizedTournaments Tournament[] @relation("TournamentOrganizers")
+  player1Matches Match[] @relation("Player1Matches")
+  player2Matches Match[] @relation("Player2Matches")
+  winnerMatches  Match[] @relation("WinnerMatches")
+  eventLogs     EventLog[] // Add this relation field
+<<<<<<< HEAD
+=======
+  decks         Deck[]
+}
+
+model Deck {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  description String?
+  fileName    String   // Original file name
+  fileUrl     String   // S3 URL
+  fileSize    Int      // File size in bytes
+  uploadedAt  DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+
+  @@unique([userId, name]) // Ensure deck names are unique per user
+>>>>>>> 9d87b86 (Ignoring images folder)
+}
+
+model TournamentParticipant {
+  id           String      @id @default(auto()) @map("_id") @db.ObjectId
+  tournament   Tournament  @relation(fields: [tournamentId], references: [id])
+  tournamentId String      @db.ObjectId
+  user         User        @relation(fields: [userId], references: [id], name: "TournamentParticipants")
+  userId    String
+  
+  @@unique([tournamentId, userId])
+}
+
+model EventLog {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  action    String
+  entity    String
+  entityId  String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  details   Json?
+  createdAt DateTime @default(now())
+}
