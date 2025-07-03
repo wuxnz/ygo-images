@@ -2,10 +2,7 @@ import { postRouter } from "@/server/api/routers/post";
 import { tournamentRouter } from "@/server/api/routers/tournament";
 import { matchRouter } from "@/server/api/routers/match";
 import { eventLogRouter } from "@/server/api/routers/eventLog";
-<<<<<<< HEAD
-=======
 import { deckRouter } from "@/server/api/routers/deck";
->>>>>>> 9d87b86 (Ignoring images folder)
 import { createCallerFactory, createTRPCRouter } from "@/server/api/trpc";
 
 /**
@@ -18,10 +15,7 @@ export const appRouter = createTRPCRouter({
   tournament: tournamentRouter,
   match: matchRouter,
   eventLog: eventLogRouter,
-<<<<<<< HEAD
-=======
   deck: deckRouter,
->>>>>>> 9d87b86 (Ignoring images folder)
 });
 
 // export type definition of API

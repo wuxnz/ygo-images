@@ -4,7 +4,6 @@ import { type NextRequest } from "next/server";
 import { env } from "@/env";
 import { appRouter } from "@/server/api/root";
 import { createTRPCContext } from "@/server/api/trpc";
-import { Router } from "next/router";
 import { redirect } from "next/navigation";
 
 /**
@@ -17,7 +16,7 @@ const createContext = async (req: NextRequest) => {
       headers: req.headers,
     });
   } catch (error) {
-    alert(error);
+    console.error("Error creating tRPC context:", error);
     redirect("/login");
   }
 };

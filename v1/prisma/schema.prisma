@@ -116,8 +116,6 @@ model User {
   player2Matches Match[] @relation("Player2Matches")
   winnerMatches  Match[] @relation("WinnerMatches")
   eventLogs     EventLog[] // Add this relation field
-<<<<<<< HEAD
-=======
   decks         Deck[]
 }
 
@@ -133,7 +131,6 @@ model Deck {
   userId      String
 
   @@unique([userId, name]) // Ensure deck names are unique per user
->>>>>>> 9d87b86 (Ignoring images folder)
 }
 
 model TournamentParticipant {

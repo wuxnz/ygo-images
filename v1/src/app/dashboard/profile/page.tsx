@@ -1,10 +1,3 @@
-<<<<<<< HEAD
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { auth } from "@/server/auth";
-import type { User } from "@prisma/client";
-import { CalendarDays, Trophy, Users } from "lucide-react";
-import { db } from "@/server/db";
-=======
 import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,7 +13,6 @@ import {
 } from "lucide-react";
 import { db } from "@/server/db";
 import Link from "next/link";
->>>>>>> 9d87b86 (Ignoring images folder)
 
 import type { Session } from "next-auth";
 
@@ -83,11 +75,7 @@ export default async function ProfilePage() {
 
   // Memoize stats calculation
   // Fetch actual stats from database
-<<<<<<< HEAD
-  const [tournamentsJoined, matchesWon, tournamentsOrganized] =
-=======
   const [tournamentsJoined, matchesWon, tournamentsOrganized, userDecks] =
->>>>>>> 9d87b86 (Ignoring images folder)
     await Promise.all([
       db.tournamentParticipant.count({
         where: {
@@ -104,8 +92,6 @@ export default async function ProfilePage() {
           organizerId: user.id,
         },
       }),
-<<<<<<< HEAD
-=======
       db.deck.findMany({
         where: {
           userId: user.id,
@@ -115,28 +101,10 @@ export default async function ProfilePage() {
         },
         take: 5, // Get latest 5 decks for preview
       }),
->>>>>>> 9d87b86 (Ignoring images folder)
     ]);
 
   return (
     <div className="container mx-auto py-8">
-<<<<<<< HEAD
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-        <ProfileCard
-          user={{
-            id: extendedUser.id,
-            name: extendedUser.name,
-            email: extendedUser.email,
-            emailVerified: extendedUser.emailVerified,
-            image: extendedUser.image,
-          }}
-        />
-        <StatsCard
-          tournaments={tournamentsJoined}
-          wins={matchesWon}
-          organized={tournamentsOrganized}
-        />
-=======
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
           <ProfileCard
@@ -158,7 +126,6 @@ export default async function ProfilePage() {
             decks={userDecks.length}
           />
         </div>
->>>>>>> 9d87b86 (Ignoring images folder)
       </div>
     </div>
   );
@@ -193,18 +160,12 @@ function StatsCard({
   tournaments,
   wins,
   organized,
-<<<<<<< HEAD
-=======
   decks,
->>>>>>> 9d87b86 (Ignoring images folder)
 }: {
   tournaments: number;
   wins: number;
   organized: number;
-<<<<<<< HEAD
-=======
   decks: number;
->>>>>>> 9d87b86 (Ignoring images folder)
 }) {
   return (
     <Card>
@@ -227,14 +188,11 @@ function StatsCard({
           label="Tournaments Organized"
           value={organized}
         />
-<<<<<<< HEAD
-=======
         <StatItem
           icon={<FileText className="size-5" />}
           label="Decks Uploaded"
           value={decks}
         />
->>>>>>> 9d87b86 (Ignoring images folder)
       </CardContent>
     </Card>
   );
@@ -259,8 +217,6 @@ function StatItem({
     </div>
   );
 }
-<<<<<<< HEAD
-=======
 
 function DecksCard({ decks }: { decks: Deck[] }) {
   return (
@@ -330,4 +286,3 @@ function DecksCard({ decks }: { decks: Deck[] }) {
     </Card>
   );
 }
->>>>>>> 9d87b86 (Ignoring images folder)
