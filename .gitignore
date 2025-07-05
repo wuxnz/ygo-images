@@ -31,7 +31,7 @@ tasks/
 v1/node_modules/
 v1/dist/
 v1/build/
-v1/public/images
+# v1/public/images
 v1/ref
 
 .cursor

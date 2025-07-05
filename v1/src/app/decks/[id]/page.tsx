@@ -4,6 +4,7 @@ import { auth } from "@/server/auth";
 import { db } from "@/server/db";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CardImage } from "@/components/ui/card-image";
 import { Badge } from "@/components/ui/badge";
 import { parseYdk } from "@/lib/deckParser";
 
@@ -120,48 +121,51 @@ export default async function DeckPage({ params }: DeckPageProps) {
                 <h3 className="mb-2 text-sm font-semibold">
                   Main Deck ({parsed.main.length})
                 </h3>
-                <ul className="grid grid-cols-2 gap-1 text-xs sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+                <div className="flex flex-wrap gap-2">
                   {parsed.main.map((id) => (
-                    <li
+                    <CardImage
                       key={`m-${id}-${Math.random()}`}
-                      className="bg-muted rounded px-2 py-1 text-center"
-                    >
-                      {id}
-                    </li>
+                      cardId={id.toString()}
+                      width={80}
+                      height={116}
+                      className="transition-transform hover:scale-105"
+                    />
                   ))}
-                </ul>
+                </div>
               </div>
 
               <div>
                 <h3 className="mb-2 text-sm font-semibold">
                   Extra Deck ({parsed.extra.length})
                 </h3>
-                <ul className="grid grid-cols-2 gap-1 text-xs sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+                <div className="flex flex-wrap gap-2">
                   {parsed.extra.map((id) => (
-                    <li
+                    <CardImage
                       key={`e-${id}-${Math.random()}`}
-                      className="bg-muted rounded px-2 py-1 text-center"
-                    >
-                      {id}
-                    </li>
+                      cardId={id.toString()}
+                      width={80}
+                      height={116}
+                      className="transition-transform hover:scale-105"
+                    />
                   ))}
-                </ul>
+                </div>
               </div>
 
               <div>
                 <h3 className="mb-2 text-sm font-semibold">
                   Side Deck ({parsed.side.length})
                 </h3>
-                <ul className="grid grid-cols-2 gap-1 text-xs sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+                <div className="flex flex-wrap gap-2">
                   {parsed.side.map((id) => (
-                    <li
+                    <CardImage
                       key={`s-${id}-${Math.random()}`}
-                      className="bg-muted rounded px-2 py-1 text-center"
-                    >
-                      {id}
-                    </li>
+                      cardId={id.toString()}
+                      width={80}
+                      height={116}
+                      className="transition-transform hover:scale-105"
+                    />
                   ))}
-                </ul>
+                </div>
               </div>
             </CardContent>
           </Card>

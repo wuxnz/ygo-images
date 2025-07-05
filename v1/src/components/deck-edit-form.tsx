@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CardImage } from "@/components/ui/card-image";
 import { toast } from "sonner";
 import { parseYdk } from "@/lib/deckParser";
 
@@ -201,14 +202,15 @@ export function DeckEditForm({ deck }: DeckEditFormProps) {
                 <p className="mb-1 text-xs font-semibold">
                   Main Deck ({preview.main.length})
                 </p>
-                <div className="flex flex-wrap gap-1 text-[10px]">
+                <div className="flex flex-wrap gap-1">
                   {preview.main.map((id) => (
-                    <span
+                    <CardImage
                       key={`pm-${id}`}
-                      className="bg-muted rounded px-1 py-0.5"
-                    >
-                      {id}
-                    </span>
+                      cardId={id.toString()}
+                      width={60}
+                      height={88}
+                      className="transition-transform hover:scale-105"
+                    />
                   ))}
                 </div>
               </div>
@@ -216,14 +218,15 @@ export function DeckEditForm({ deck }: DeckEditFormProps) {
                 <p className="mb-1 text-xs font-semibold">
                   Extra Deck ({preview.extra.length})
                 </p>
-                <div className="flex flex-wrap gap-1 text-[10px]">
+                <div className="flex flex-wrap gap-1">
                   {preview.extra.map((id) => (
-                    <span
+                    <CardImage
                       key={`pe-${id}`}
-                      className="bg-muted rounded px-1 py-0.5"
-                    >
-                      {id}
-                    </span>
+                      cardId={id.toString()}
+                      width={60}
+                      height={88}
+                      className="transition-transform hover:scale-105"
+                    />
                   ))}
                 </div>
               </div>
@@ -231,14 +234,15 @@ export function DeckEditForm({ deck }: DeckEditFormProps) {
                 <p className="mb-1 text-xs font-semibold">
                   Side Deck ({preview.side.length})
                 </p>
-                <div className="flex flex-wrap gap-1 text-[10px]">
+                <div className="flex flex-wrap gap-1">
                   {preview.side.map((id) => (
-                    <span
+                    <CardImage
                       key={`ps-${id}`}
-                      className="bg-muted rounded px-1 py-0.5"
-                    >
-                      {id}
-                    </span>
+                      cardId={id.toString()}
+                      width={60}
+                      height={88}
+                      className="transition-transform hover:scale-105"
+                    />
                   ))}
                 </div>
               </div>
