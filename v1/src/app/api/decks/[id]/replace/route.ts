@@ -12,7 +12,7 @@ const s3Client = new S3Client({
   },
 });
 
-export async function PATCH(
+export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } },
 ) {
@@ -27,6 +27,36 @@ export async function PATCH(
       userId: session.user.id,
     },
   });
+
+  if (!deck) {
+    return NextResponse.json({ error: "Deck not found" }, { status: 404 });
+  }
+
+  return NextResponse.json(deck);
+}
+
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: { id: string } },
+) {
+  const session = await auth();
+  if (!session || !session.user || !session.user.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const [deck, tournament] = await Promise.all([
+    db.deck.findFirst({
+      where: { id: params.id },
+    }),
+    db.tournament.findFirst({
+      where: {
+        participants: { some: { deckId: params.id } },
+        creatorId: session.user.id,
+      },
+    }),
+  ]);
+
+  const hasAccess = deck?.userId === session.user.id || !!tournament;
 
   if (!deck) {
     return NextResponse.json({ error: "Deck not found" }, { status: 404 });

@@ -128,7 +128,8 @@ model Deck {
   fileSize    Int      // File size in bytes
   uploadedAt  DateTime @default(now())
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId      String
+  userId    String
+  participants TournamentParticipant[] @relation("ParticipantDeck")
 
   @@unique([userId, name]) // Ensure deck names are unique per user
 }
@@ -139,6 +140,8 @@ model TournamentParticipant {
   tournamentId String      @db.ObjectId
   user         User        @relation(fields: [userId], references: [id], name: "TournamentParticipants")
   userId    String
+  deckId    String?  @db.ObjectId
+  deck      Deck?    @relation("ParticipantDeck", fields: [deckId], references: [id])
   
   @@unique([tournamentId, userId])
 }

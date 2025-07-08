@@ -112,14 +112,71 @@ export const tournamentRouter = createTRPCRouter({
       await ctx.db.tournamentParticipant.deleteMany({
         where: { tournamentId: input.id },
       });
-      // Delete all Match records for this tournament
-      await ctx.db.match.deleteMany({
-        where: { tournamentId: input.id },
+    }),
+  setDeck: protectedProcedure
+    .input(
+      z.object({
+        tournamentId: z.string(),
+        deckId: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const participant = await ctx.db.tournamentParticipant.findFirst({
+        where: {
+          tournamentId: input.tournamentId,
+          userId: ctx.session.user.id,
+        },
       });
-      // Now delete the Tournament
-      return await ctx.db.tournament.delete({
-        where: { id: input.id },
+
+      if (!participant) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "Only participants can select decks",
+        });
+      }
+
+      return ctx.db.tournamentParticipant.update({
+        where: { id: participant.id },
+        data: { deckId: input.deckId },
       });
+    }),
+  getParticipantDecks: protectedProcedure
+    .input(z.object({ tournamentId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      const tournament = await ctx.db.tournament.findUnique({
+        where: { id: input.tournamentId },
+        include: {
+          participants: {
+            include: {
+              user: true,
+              deck: true,
+            },
+          },
+        },
+      });
+
+      if (!tournament) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Tournament not found",
+        });
+      }
+
+      if (tournament.organizerId !== ctx.session.user.id) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "Only organizers can view participant decks",
+        });
+      }
+
+      return tournament.participants
+        .filter((p) => p.deckId)
+        .map((p) => ({
+          userId: p.userId,
+          userName: p.user.name,
+          deckId: p.deckId,
+          deckName: p.deck?.name,
+        }));
     }),
 
   join: protectedProcedure

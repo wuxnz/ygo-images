@@ -7,7 +7,19 @@ import { useSession } from "next-auth/react";
 import { useParams, useRouter } from "next/navigation";
 import { Bracket } from "@/components/Bracket";
 import { useState } from "react";
+import { Form } from "@/components/ui/form";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import React from "react";
+import z from "zod";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import Link from "next/link";
 
 export default function TournamentDetailPage() {
   const router = useRouter();
@@ -20,6 +32,14 @@ export default function TournamentDetailPage() {
   const { data: tournament, isLoading } = api.tournament.getById.useQuery({
     id,
   });
+
+  const setDeck = api.tournament.setDeck.useMutation({
+    onSuccess: () => {
+      utils.tournament.getById.invalidate({ id });
+    },
+  });
+
+  const getDecks = api.deck.getUserDecks.useQuery();
 
   const joinMutation = api.tournament.join.useMutation({
     onSuccess: () => {
@@ -107,6 +127,34 @@ export default function TournamentDetailPage() {
     }
   };
 
+  const deckSchema = z.object({
+    deckId: z.string(),
+  });
+
+  const form = useForm<z.infer<typeof deckSchema>>({
+    resolver: zodResolver(deckSchema),
+  });
+
+  const isCreator = tournament?.creatorId === session?.user?.id;
+  const [isParticipant, setIsParticipant] = useState(
+    tournament?.participants.some(
+      (participant) => participant.userId === session?.user?.id,
+    ),
+  );
+
+  React.useEffect(() => {
+    setIsParticipant(
+      tournament?.participants.some(
+        (participant) => participant.userId === session?.user?.id,
+      ),
+    );
+  }, [tournament?.participants]);
+
+  console.log("participants", tournament?.participants);
+  console.log("id", session?.user?.id);
+  console.log("isCreator", isCreator);
+  console.log("notIsParticipant", !isParticipant);
+
   if (isLoading) {
     return <div>Loading...</div>;
   }
@@ -114,11 +162,6 @@ export default function TournamentDetailPage() {
   if (!tournament) {
     return <div>Tournament not found</div>;
   }
-
-  const isCreator = tournament.creatorId === session?.user?.id;
-  const isParticipant = tournament.participants?.some(
-    (p) => p.id === session?.user?.id,
-  );
 
   return (
     <div className="container mx-auto flex flex-col gap-4 py-8">
@@ -164,7 +207,13 @@ export default function TournamentDetailPage() {
           {tournament.participants?.length > 0 ? (
             <ul className="list-disc pl-5">
               {tournament.participants.map((participant) => (
-                <li key={participant.id}>{participant.user.name}</li>
+                <li key={participant.id}>
+                  <Link
+                    href={`/deck/${participant.tournamentId}/${participant.deckId}`}
+                  >
+                    {participant.user.name}
+                  </Link>
+                </li>
               ))}
             </ul>
           ) : (
@@ -214,9 +263,43 @@ export default function TournamentDetailPage() {
           </Button>
         )}
         {!isCreator && isParticipant && (
-          <Button variant="secondary" disabled>
-            Already Joined
-          </Button>
+          <div className="space-y-4">
+            <Button variant="secondary" disabled>
+              Already Joined
+            </Button>
+
+            <Form {...form}>
+              <form
+                onSubmit={form.handleSubmit((data) =>
+                  setDeck.mutate({ tournamentId: id, deckId: data.deckId }),
+                )}
+                className="space-y-4"
+              >
+                <Select
+                  onValueChange={(value) => form.setValue("deckId", value)}
+                  defaultValue={
+                    tournament.participants.find(
+                      (p) => p.userId === session?.user?.id,
+                    )?.deckId ?? ""
+                  }
+                >
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Select a deck" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {getDecks.data?.map((deck) => (
+                      <SelectItem key={deck.id} value={deck.id}>
+                        {deck.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button type="submit" disabled={setDeck.isPending}>
+                  Save Deck Choice
+                </Button>
+              </form>
+            </Form>
+          </div>
         )}
       </div>
 
