@@ -21,6 +21,24 @@ export default async function DeckPage({ params }: DeckPageProps) {
 
   const { id, tournamentId } = params;
 
+  // Early check for missing deck (ID is 'null')
+  if (id === "null" && session.user) {
+    return (
+      <div className="container mx-auto py-8">
+        <Card className="mx-auto max-w-2xl">
+          <CardHeader>
+            <CardTitle>No Deck Uploaded</CardTitle>
+          </CardHeader>
+          <CardContent>
+            User has not uploaded a deck for this tournament.
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Fetch both deck and tournament in parallel
+
   // Fetch both deck and tournament in parallel
   const [deck, tournament] = await Promise.all([
     db.deck.findFirst({
@@ -39,6 +57,21 @@ export default async function DeckPage({ params }: DeckPageProps) {
     deck?.userId === session.user.id ||
     tournament?.creatorId === session.user.id;
 
+  if (!deck || !hasAccess) {
+    return (
+      <div className="container mx-auto py-8">
+        <Card className="mx-auto max-w-2xl">
+          <CardHeader>
+            <CardTitle>Access Restricted</CardTitle>
+          </CardHeader>
+          <CardContent>
+            You either do not have access to view this deck or it has not been
+            uploaded.
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
   if (!deck || !hasAccess) {
     notFound();
   }

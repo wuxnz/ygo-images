@@ -41,5 +41,5 @@
     "build/types/**/*.ts",
     "src/types/**/*.d.ts"
   ],
-  "exclude": ["node_modules", "ref"]
+  "exclude": ["node_modules", "ref/*"]
 }
