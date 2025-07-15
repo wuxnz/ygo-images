@@ -22,6 +22,18 @@ export function Navbar() {
         <Link href="/" className="text-lg font-bold">
           TDC
         </Link>
+        <Link
+          href="/tournaments"
+          className="hover:text-primary text-sm font-medium"
+        >
+          Tournaments
+        </Link>
+        <Link
+          href="/tournaments/history"
+          className="hover:text-primary text-sm font-medium"
+        >
+          History
+        </Link>
         {session?.user && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -29,10 +41,21 @@ export function Navbar() {
             </DropdownMenuTrigger>
             <DropdownMenuContent>
               <DropdownMenuItem asChild>
+                <Link href="/dashboard">Dashboard Home</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
                 <Link href="/dashboard/profile">Profile</Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <Link href="/dashboard/tournaments">Tournaments</Link>
+                <Link href="/dashboard/decks">My Decks</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/dashboard/tournaments/my-tournaments">
+                  My Tournaments
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/dashboard/tournaments">All Tournaments</Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
                 <Link
@@ -71,7 +94,21 @@ export function Navbar() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem asChild>
+                  <Link href="/dashboard">Dashboard</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
                   <Link href="/dashboard/profile">Profile</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/dashboard/decks">My Decks</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/dashboard/tournaments/my-tournaments">
+                    My Tournaments
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/dashboard/settings">Settings</Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => signOut()}>
                   Sign Out

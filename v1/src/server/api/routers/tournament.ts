@@ -56,6 +56,7 @@ export const tournamentRouter = createTRPCRouter({
           participants: {
             include: {
               user: true,
+              deck: true,
             },
           },
           organizer: true,
@@ -273,4 +274,303 @@ export const tournamentRouter = createTRPCRouter({
 
       return { success: true };
     }),
+
+  complete: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      // Only the organizer/creator can complete the tournament
+      const tournament = await ctx.db.tournament.findUnique({
+        where: { id: input.id },
+        include: {
+          participants: {
+            include: {
+              user: true,
+              deck: true,
+            },
+          },
+          matches: true,
+        },
+      });
+
+      if (!tournament) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Tournament not found",
+        });
+      }
+
+      if (
+        tournament.organizerId !== ctx.session.user.id &&
+        tournament.creatorId !== ctx.session.user.id
+      ) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "Only the organizer can complete this tournament",
+        });
+      }
+
+      if (!tournament.started) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Tournament has not started",
+        });
+      }
+
+      if (tournament.completed) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Tournament already completed",
+        });
+      }
+
+      // Check if all matches are completed
+      const allMatchesCompleted = tournament.matches.every(
+        (match) => match.status === "COMPLETED",
+      );
+
+      if (!allMatchesCompleted) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            "All matches must be completed before finishing the tournament",
+        });
+      }
+
+      // Find the winner (the player who won the final match)
+      // The final match is in the last round
+      const maxRound = Math.max(...tournament.matches.map((m) => m.round));
+      const finalMatch = tournament.matches.find(
+        (match) => match.round === maxRound,
+      );
+
+      if (!finalMatch || !finalMatch.winnerId) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Final match winner not determined",
+        });
+      }
+
+      const winner = tournament.participants.find(
+        (p) => p.userId === finalMatch.winnerId,
+      );
+
+      if (!winner) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Winner not found in participants",
+        });
+      }
+
+      // Calculate top 8 placements
+      const top8Placements = calculateTop8Placements(tournament);
+
+      // Create tournament result record
+      await ctx.db.tournamentResult.create({
+        data: {
+          tournamentId: input.id,
+          winnerId: winner.userId,
+          totalParticipants: tournament.participants.length,
+          top8: {
+            create: top8Placements,
+          },
+        },
+      });
+
+      // Mark tournament as completed
+      const completedTournament = await ctx.db.tournament.update({
+        where: { id: input.id },
+        data: {
+          completed: true,
+          winnerId: winner.userId,
+        },
+      });
+
+      return { success: true, winnerId: winner.userId };
+    }),
+
+  kickParticipant: protectedProcedure
+    .input(z.object({ tournamentId: z.string(), userId: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const tournament = await ctx.db.tournament.findUnique({
+        where: { id: input.tournamentId },
+        include: {
+          participants: true,
+        },
+      });
+
+      if (!tournament) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Tournament not found",
+        });
+      }
+
+      if (tournament.organizerId !== ctx.session.user.id) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "Only the organizer can kick participants",
+        });
+      }
+
+      if (tournament.started) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Cannot kick participants after tournament has started",
+        });
+      }
+
+      // Remove participant
+      await ctx.db.tournamentParticipant.deleteMany({
+        where: {
+          tournamentId: input.tournamentId,
+          userId: input.userId,
+        },
+      });
+
+      return { success: true };
+    }),
+
+  banParticipant: protectedProcedure
+    .input(z.object({ tournamentId: z.string(), userId: z.string() }))
+    .mutation(async ({ input, ctx }) => {
+      const tournament = await ctx.db.tournament.findUnique({
+        where: { id: input.tournamentId },
+        include: {
+          participants: true,
+        },
+      });
+
+      if (!tournament) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Tournament not found",
+        });
+      }
+
+      if (tournament.organizerId !== ctx.session.user.id) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "Only the organizer can ban participants",
+        });
+      }
+
+      if (tournament.started) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Cannot ban participants after tournament has started",
+        });
+      }
+
+      // Remove participant (ban is just removal - they can't rejoin)
+      await ctx.db.tournamentParticipant.deleteMany({
+        where: {
+          tournamentId: input.tournamentId,
+          userId: input.userId,
+        },
+      });
+
+      return { success: true };
+    }),
 });
+
+// Helper function to calculate top 8 placements
+function calculateTop8Placements(tournament: any) {
+  const matches = tournament.matches;
+  const participants = tournament.participants;
+
+  // Build placement array
+  const placementMap = new Map<number, { userId: string; deckId?: string }>();
+
+  // 1st place: winner of final match
+  const maxRound = Math.max(...matches.map((m: any) => m.round));
+  const finalMatch = matches.find(
+    (m: any) => m.round === maxRound && m.status === "COMPLETED",
+  );
+  const winnerId = finalMatch?.winnerId;
+
+  if (winnerId) {
+    const winnerParticipant = participants.find(
+      (p: any) => p.userId === winnerId,
+    );
+    placementMap.set(1, {
+      userId: winnerId,
+      deckId: winnerParticipant?.deckId,
+    });
+  }
+
+  // 2nd place: loser of final match
+  if (finalMatch?.winnerId && finalMatch.player1Id && finalMatch.player2Id) {
+    const secondPlaceId =
+      finalMatch.winnerId === finalMatch.player1Id
+        ? finalMatch.player2Id
+        : finalMatch.player1Id;
+    const secondParticipant = participants.find(
+      (p: any) => p.userId === secondPlaceId,
+    );
+    if (secondParticipant) {
+      placementMap.set(2, {
+        userId: secondPlaceId,
+        deckId: secondParticipant.deckId,
+      });
+    }
+  }
+
+  // Semi-finalists (3rd-4th)
+  const semiFinalMatches = matches.filter((m: any) => m.round === maxRound - 1);
+  const semiFinalists: string[] = [];
+
+  semiFinalMatches.forEach((match: any) => {
+    if (match.status === "COMPLETED" && match.winnerId) {
+      const loserId =
+        match.winnerId === match.player1Id ? match.player2Id : match.player1Id;
+      if (loserId) semiFinalists.push(loserId);
+    }
+  });
+
+  semiFinalists.forEach((userId, index) => {
+    const participant = participants.find((p: any) => p.userId === userId);
+    if (participant) {
+      placementMap.set(index + 3, { userId, deckId: participant.deckId });
+    }
+  });
+
+  // Quarter-finalists (5th-8th) for 16+ player tournaments
+  if (tournament.size >= 16) {
+    const quarterFinalMatches = matches.filter(
+      (m: any) => m.round === maxRound - 2,
+    );
+    const quarterFinalists: string[] = [];
+
+    quarterFinalMatches.forEach((match: any) => {
+      if (match.status === "COMPLETED" && match.winnerId) {
+        const loserId =
+          match.winnerId === match.player1Id
+            ? match.player2Id
+            : match.player1Id;
+        if (loserId) quarterFinalists.push(loserId);
+      }
+    });
+
+    quarterFinalists.forEach((userId, index) => {
+      const participant = participants.find((p: any) => p.userId === userId);
+      if (participant) {
+        placementMap.set(index + 5, { userId, deckId: participant.deckId });
+      }
+    });
+  }
+
+  // Convert to array format for database
+  const top8Placements = [];
+  for (let i = 1; i <= 8; i++) {
+    const placement = placementMap.get(i);
+    if (placement) {
+      top8Placements.push({
+        placement: i,
+        userId: placement.userId,
+        deckId: placement.deckId,
+      });
+    }
+  }
+
+  return top8Placements;
+}

@@ -20,6 +20,17 @@ import z from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
+import { TournamentParticipantCard } from "@/components/tournament/TournamentParticipantCard";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function TournamentDetailPage() {
   const router = useRouter();
@@ -115,10 +126,20 @@ export default function TournamentDetailPage() {
     onError: (err) => setBracketError(err.message),
   });
 
+  const completeTournamentMutation = api.tournament.complete.useMutation({
+    onSuccess: () => {
+      router.push("/dashboard/tournaments");
+    },
+    onError: (err) => setBracketError(err.message),
+  });
+
   const handleDelete = () => {
-    if (confirm("Are you sure you want to delete this tournament?")) {
-      deleteMutation.mutate({ id });
-    }
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = () => {
+    deleteMutation.mutate({ id });
+    setDeleteDialogOpen(false);
   };
 
   const handleJoin = () => {
@@ -141,6 +162,11 @@ export default function TournamentDetailPage() {
       (participant) => participant.userId === session?.user?.id,
     ),
   );
+
+  // Dialog states
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [reshuffleDialogOpen, setReshuffleDialogOpen] = useState(false);
+  const [completeDialogOpen, setCompleteDialogOpen] = useState(false);
 
   React.useEffect(() => {
     setIsParticipant(
@@ -205,17 +231,22 @@ export default function TournamentDetailPage() {
         </CardHeader>
         <CardContent>
           {tournament.participants?.length > 0 ? (
-            <ul className="list-disc pl-5">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
               {tournament.participants.map((participant) => (
-                <li key={participant.id}>
-                  <Link
-                    href={`/deck/${participant.tournamentId}/${participant.deckId}`}
-                  >
-                    {participant.user.name}
-                  </Link>
-                </li>
+                <TournamentParticipantCard
+                  key={participant.id}
+                  participant={participant}
+                  isCreator={isCreator}
+                  currentUserId={session?.user?.id}
+                  onKickSuccess={() => {
+                    utils.tournament.getById.invalidate({ id });
+                  }}
+                  onBanSuccess={() => {
+                    utils.tournament.getById.invalidate({ id });
+                  }}
+                />
               ))}
-            </ul>
+            </div>
           ) : (
             <p>No participants yet</p>
           )}
@@ -325,21 +356,27 @@ export default function TournamentDetailPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => {
-                    if (
-                      confirm(
-                        "Are you sure you want to reshuffle the entire bracket? This will reset all matches.",
-                      )
-                    ) {
-                      reshuffleBracketMutation.mutate({ tournamentId: id });
-                    }
-                  }}
+                  onClick={() => setReshuffleDialogOpen(true)}
                   disabled={reshuffleBracketMutation.isPending}
                 >
                   {reshuffleBracketMutation.isPending
                     ? "Reshuffling..."
                     : "Reshuffle Bracket"}
                 </Button>
+                {matches &&
+                  matches.length > 0 &&
+                  matches.every((m) => m.status === "COMPLETED") && (
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={() => setCompleteDialogOpen(true)}
+                      disabled={completeTournamentMutation.isPending}
+                    >
+                      {completeTournamentMutation.isPending
+                        ? "Completing..."
+                        : "Complete Tournament"}
+                    </Button>
+                  )}
               </div>
             )}
           </div>
@@ -382,6 +419,9 @@ export default function TournamentDetailPage() {
               onResetRound={(round) => {
                 resetRoundMutation.mutate({ tournamentId: id, round });
               }}
+              onCompleteTournament={() => {
+                completeTournamentMutation.mutate({ id });
+              }}
             />
           ) : (
             <div>
@@ -397,6 +437,82 @@ export default function TournamentDetailPage() {
           )}
         </div>
       )}
+
+      {/* Delete Tournament Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Tournament</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this tournament? This action
+              cannot be undone and will remove all participants and matches.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete Tournament
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Reshuffle Bracket Dialog */}
+      <AlertDialog
+        open={reshuffleDialogOpen}
+        onOpenChange={setReshuffleDialogOpen}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reshuffle Bracket</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to reshuffle the entire bracket? This will
+              reset all matches and may change participant positions.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                reshuffleBracketMutation.mutate({ tournamentId: id });
+                setReshuffleDialogOpen(false);
+              }}
+            >
+              Reshuffle Bracket
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Complete Tournament Dialog */}
+      <AlertDialog
+        open={completeDialogOpen}
+        onOpenChange={setCompleteDialogOpen}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Complete Tournament</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to complete this tournament? This will move
+              it to tournament history and calculate final placements.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                completeTournamentMutation.mutate({ id });
+                setCompleteDialogOpen(false);
+              }}
+            >
+              Complete Tournament
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

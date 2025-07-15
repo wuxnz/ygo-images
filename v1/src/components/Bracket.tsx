@@ -1,4 +1,15 @@
 import React, { useState } from "react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
 
 // Types for match and participant
 export interface BracketParticipant {
@@ -24,8 +35,10 @@ interface BracketProps {
   bracketType: string;
   isCreator: boolean;
   onAdvanceWinner: (matchId: string, winnerId: string) => void;
+  onAdvanceAllWinners?: () => void;
   onResetMatch?: (matchId: string) => void;
   onResetRound?: (round: number) => void;
+  onCompleteTournament?: () => void;
 }
 
 export const Bracket: React.FC<BracketProps> = ({
@@ -34,8 +47,10 @@ export const Bracket: React.FC<BracketProps> = ({
   bracketType,
   isCreator,
   onAdvanceWinner,
+  onAdvanceAllWinners,
   onResetMatch,
   onResetRound,
+  onCompleteTournament,
 }) => {
   const [finalWinner, setFinalWinner] = useState<BracketParticipant | null>(
     null,
@@ -93,38 +108,66 @@ export const Bracket: React.FC<BracketProps> = ({
     rawMatches: matches.slice(0, 3), // Show first 3 raw matches
   });
 
-  // Winner selection dialog
+  const [selectedMatch, setSelectedMatch] = useState<any>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [resetRoundDialogOpen, setResetRoundDialogOpen] = useState(false);
+  const [resetMatchDialogOpen, setResetMatchDialogOpen] = useState(false);
+  const [advanceAllDialogOpen, setAdvanceAllDialogOpen] = useState(false);
+  const [completeTournamentDialogOpen, setCompleteTournamentDialogOpen] =
+    useState(false);
+  const [selectedRoundForReset, setSelectedRoundForReset] = useState<
+    number | null
+  >(null);
+  const [selectedMatchForReset, setSelectedMatchForReset] = useState<
+    string | null
+  >(null);
+
   const handleMatchClick = (match: any) => {
-    console.log("Match clicked:", match); // Debug log
+    console.log("Match clicked:", match);
     if (!isCreator) return;
 
     const p1 = match.participants[0];
     const p2 = match.participants[1];
     if (!p1 || !p2) return;
 
-    // Allow changing winner even if match is completed
-    const currentWinner = match.participants.find((p: any) => p.isWinner);
-    const currentWinnerText = currentWinner
-      ? ` (Current winner: ${currentWinner.name})`
-      : "";
+    setSelectedMatch(match);
+    setIsDialogOpen(true);
+  };
 
-    const winnerName = window.prompt(
-      `Who won this match?${currentWinnerText}\nEnter "1" for ${p1.name}, "2" for ${p2.name}, or "reset" to clear the winner`,
-    );
-
-    if (winnerName === "reset") {
-      if (onResetMatch) {
-        onResetMatch(match.id);
-      }
-      return;
+  const handleWinnerSelection = (winnerId: string) => {
+    if (selectedMatch && winnerId) {
+      onAdvanceWinner(selectedMatch.id, winnerId);
     }
+    setIsDialogOpen(false);
+    setSelectedMatch(null);
+  };
 
-    let winnerId: string | undefined;
-    if (winnerName === "1") winnerId = p1.id;
-    if (winnerName === "2") winnerId = p2.id;
-    if (winnerId) {
-      onAdvanceWinner(match.id, winnerId);
+  const handleResetMatch = () => {
+    if (selectedMatch && onResetMatch) {
+      onResetMatch(selectedMatch.id);
     }
+    setIsDialogOpen(false);
+    setSelectedMatch(null);
+  };
+
+  const handleResetRound = () => {
+    if (selectedRoundForReset !== null && onResetRound) {
+      onResetRound(selectedRoundForReset);
+    }
+    setResetRoundDialogOpen(false);
+    setSelectedRoundForReset(null);
+  };
+
+  const handleResetSingleMatch = () => {
+    if (selectedMatchForReset && onResetMatch) {
+      onResetMatch(selectedMatchForReset);
+    }
+    setResetMatchDialogOpen(false);
+    setSelectedMatchForReset(null);
+  };
+
+  const handleCompleteTournament = () => {
+    setCompleteTournamentDialogOpen(true);
   };
 
   // Handle empty matches case
@@ -145,6 +188,27 @@ export const Bracket: React.FC<BracketProps> = ({
         </div>
       ) : null}
 
+      {isCreator && (
+        <div className="mb-4 flex justify-center gap-2">
+          {onAdvanceAllWinners && (
+            <Button
+              onClick={() => setAdvanceAllDialogOpen(true)}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              Advance All Winners
+            </Button>
+          )}
+          {tournamentFinished && (
+            <Button
+              onClick={handleCompleteTournament}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              Complete Tournament
+            </Button>
+          )}
+        </div>
+      )}
+
       {/* Simple Bracket Display - Custom Implementation */}
       <div className="simple-bracket space-y-6">
         {Array.from(new Set(matches.map((m) => m.round)))
@@ -163,13 +227,8 @@ export const Bracket: React.FC<BracketProps> = ({
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (
-                          confirm(
-                            `Are you sure you want to reset all matches in Round ${round}?`,
-                          )
-                        ) {
-                          onResetRound(round);
-                        }
+                        setSelectedRoundForReset(round);
+                        setResetRoundDialogOpen(true);
                       }}
                       className="text-xs text-red-400 underline hover:text-red-300"
                     >
@@ -266,13 +325,8 @@ export const Bracket: React.FC<BracketProps> = ({
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                if (
-                                  confirm(
-                                    "Are you sure you want to reset this match?",
-                                  )
-                                ) {
-                                  onResetMatch(match.id);
-                                }
+                                setSelectedMatchForReset(match.id);
+                                setResetMatchDialogOpen(true);
                               }}
                               className="mt-1 text-xs text-red-400 underline hover:text-red-300"
                             >
@@ -287,6 +341,172 @@ export const Bracket: React.FC<BracketProps> = ({
             );
           })}
       </div>
+      {/* Winner Selection Dialog */}
+      <AlertDialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Select Match Winner</AlertDialogTitle>
+            <AlertDialogDescription>
+              Choose the winner for this match. You can change this later if
+              needed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          {selectedMatch && (
+            <div className="space-y-4 py-4">
+              <div className="text-center">
+                <p className="mb-4 text-sm text-gray-600">
+                  {selectedMatch.tournamentRoundText}
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <Button
+                  className="w-full"
+                  onClick={() =>
+                    handleWinnerSelection(selectedMatch.participants[0].id)
+                  }
+                  variant={
+                    selectedMatch.participants[0].isWinner
+                      ? "default"
+                      : "outline"
+                  }
+                >
+                  {selectedMatch.participants[0].name}
+                  {selectedMatch.participants[0].isWinner && " 🏆"}
+                </Button>
+
+                <div className="text-center text-sm text-gray-500">vs</div>
+
+                <Button
+                  className="w-full"
+                  onClick={() =>
+                    handleWinnerSelection(selectedMatch.participants[1].id)
+                  }
+                  variant={
+                    selectedMatch.participants[1].isWinner
+                      ? "default"
+                      : "outline"
+                  }
+                >
+                  {selectedMatch.participants[1].name}
+                  {selectedMatch.participants[1].isWinner && " 🏆"}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          <AlertDialogFooter>
+            {selectedMatch?.participants.some((p: any) => p.isWinner) && (
+              <Button variant="destructive" onClick={handleResetMatch}>
+                Reset Match
+              </Button>
+            )}
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Advance All Winners Dialog */}
+      <AlertDialog
+        open={advanceAllDialogOpen}
+        onOpenChange={setAdvanceAllDialogOpen}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Advance All Winners</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to advance all winners to the next round?
+              This will complete all matches with declared winners.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                onAdvanceAllWinners?.();
+                setAdvanceAllDialogOpen(false);
+              }}
+            >
+              Advance All
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Reset Round Dialog */}
+      <AlertDialog
+        open={resetRoundDialogOpen}
+        onOpenChange={setResetRoundDialogOpen}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reset Round</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to reset all matches in Round{" "}
+              {selectedRoundForReset}? This will clear all winners and reset
+              match statuses.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleResetRound}>
+              Reset Round
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Reset Match Dialog */}
+      <AlertDialog
+        open={resetMatchDialogOpen}
+        onOpenChange={setResetMatchDialogOpen}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reset Match</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to reset this match? This will clear the
+              winner and reset the match status.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleResetSingleMatch}>
+              Reset Match
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Complete Tournament Dialog */}
+      <AlertDialog
+        open={completeTournamentDialogOpen}
+        onOpenChange={setCompleteTournamentDialogOpen}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Complete Tournament</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to complete this tournament? This will move
+              it to tournament history and calculate final placements.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (onCompleteTournament) {
+                  onCompleteTournament();
+                }
+                setCompleteTournamentDialogOpen(false);
+              }}
+            >
+              Complete Tournament
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

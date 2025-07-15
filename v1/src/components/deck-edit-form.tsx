@@ -11,6 +11,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CardImage } from "@/components/ui/card-image";
 import { toast } from "sonner";
 import { parseYdk } from "@/lib/deckParser";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface Deck {
   id: string;
@@ -35,6 +45,7 @@ export function DeckEditForm({ deck }: DeckEditFormProps) {
   const [preview, setPreview] = useState<ReturnType<typeof parseYdk> | null>(
     null,
   );
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   // fetch deck file once on mount to show existing preview
   React.useEffect(() => {
@@ -120,13 +131,12 @@ export function DeckEditForm({ deck }: DeckEditFormProps) {
   };
 
   const handleDelete = () => {
-    if (
-      confirm(
-        "Are you sure you want to delete this deck? This action cannot be undone.",
-      )
-    ) {
-      deleteDeck.mutate({ id: deck.id });
-    }
+    setShowDeleteDialog(true);
+  };
+
+  const handleConfirmDelete = () => {
+    deleteDeck.mutate({ id: deck.id });
+    setShowDeleteDialog(false);
   };
 
   return (
@@ -269,6 +279,28 @@ export function DeckEditForm({ deck }: DeckEditFormProps) {
           </div>
         </form>
       </CardContent>
+
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Deck</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this deck? This action cannot be
+              undone. The deck file and all associated data will be permanently
+              removed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              className="bg-destructive text-destructive-foreground"
+            >
+              Delete Deck
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }
