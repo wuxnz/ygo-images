@@ -75,13 +75,13 @@ export default function TournamentHistoryDetailPage() {
   const getPlacementColor = (placement: number) => {
     switch (placement) {
       case 1:
-        return "bg-yellow-50 border-yellow-200";
+        return "border-yellow-200";
       case 2:
-        return "bg-gray-50 border-gray-200";
+        return "border-gray-200";
       case 3:
-        return "bg-orange-50 border-orange-200";
+        return "border-orange-200";
       default:
-        return "bg-blue-50 border-blue-200";
+        return "border-blue-200";
     }
   };
 
