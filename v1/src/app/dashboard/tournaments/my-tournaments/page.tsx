@@ -112,7 +112,7 @@ export default function MyTournamentsPage() {
 
         <CardFooter className="flex gap-2">
           <Button asChild className="flex-1">
-            <Link href={`/tournaments/${tournament.id}`}>
+            <Link href={`/dashboard/tournaments/${tournament.id}`}>
               <Eye className="mr-2 h-4 w-4" />
               View
             </Link>
