@@ -117,6 +117,8 @@ export function TournamentForm({
                 >
                   <option value="SINGLE_ELIMINATION">Single Elimination</option>
                   <option value="DOUBLE_ELIMINATION">Double Elimination</option>
+                  <option value="SWISS">Swiss Format</option>
+                  <option value="ROUND_ROBIN">Round Robin</option>
                 </select>
               </FormControl>
               <FormMessage />

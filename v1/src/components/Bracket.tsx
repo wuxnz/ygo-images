@@ -10,6 +10,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { RoundRobinBracket } from "./RoundRobinBracket";
 
 // Types for match and participant
 export interface BracketParticipant {
@@ -169,6 +170,20 @@ export const Bracket: React.FC<BracketProps> = ({
   const handleCompleteTournament = () => {
     setCompleteTournamentDialogOpen(true);
   };
+
+  // Handle Round Robin tournaments
+  if (bracketType === "ROUND_ROBIN") {
+    return (
+      <RoundRobinBracket
+        matches={matches}
+        participants={participants}
+        isCreator={isCreator}
+        onAdvanceWinner={onAdvanceWinner}
+        onResetMatch={onResetMatch}
+        onCompleteTournament={onCompleteTournament}
+      />
+    );
+  }
 
   // Handle empty matches case
   if (matches.length === 0) {

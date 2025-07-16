@@ -10,6 +10,29 @@ datasource db {
     url      = env("DATABASE_URL")
 }
 
+model User {
+  id            String    @id @default(uuid()) @map("_id")
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  accounts      Account[]
+  sessions      Session[]
+  posts         Post[]
+  decks         Deck[]
+  tournamentParticipants TournamentParticipant[] @relation("TournamentParticipants")
+  organizedTournaments Tournament[] @relation("TournamentOrganizers")
+  createdTeams  Team[] @relation("TeamCreators")
+  teamMemberships TeamMember[]
+  player1Matches Match[] @relation("Player1Matches")
+  player2Matches Match[] @relation("Player2Matches")
+  winnerMatches Match[] @relation("WinnerMatches")
+  wonTournaments Tournament[] @relation("TournamentWinners")
+  tournamentResults TournamentResult[] @relation("TournamentResultWinners")
+  top8Placements TournamentTop8[] @relation("TournamentTop8Users")
+  // Add missing relations with proper naming
+  tournamentResultTop8s TournamentResultTop8User[] @relation("UserTop8Results")
+}
 
 model Account {
     id                String  @id @default(auto()) @map("_id") @db.ObjectId
@@ -58,99 +81,6 @@ model Post {
     @@index([name])
 }
 
-model Tournament {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  name        String
-  size        Int
-  bracketType String
-  rules       String
-  prize       String
-  startDate   DateTime
-  endDate     DateTime
-  organizer   User     @relation(fields: [organizerId], references: [id], name: "TournamentOrganizers")
-  organizerId String
-  creatorId   String   // Add creatorId field
-  participants TournamentParticipant[]
-  matches     Match[]
-  started     Boolean  @default(false)
-  completed   Boolean  @default(false)
-  winnerId    String?
-  winner      User?    @relation("TournamentWinners", fields: [winnerId], references: [id])
-  completedAt DateTime?
-  results     TournamentResult?
-}
-
-model TournamentResult {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  tournament  Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  tournamentId String  @unique @db.ObjectId
-  winnerId    String
-  winner      User    @relation("TournamentResultWinners", fields: [winnerId], references: [id])
-  totalParticipants Int
-  completedAt DateTime @default(now())
-  top8        TournamentTop8[]
-}
-
-model TournamentTop8 {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  tournamentResult   TournamentResult @relation(fields: [tournamentResultId], references: [id], onDelete: Cascade)
-  tournamentResultId String  @db.ObjectId
-  placement   Int     // 1-8
-  userId      String
-  user        User    @relation("TournamentTop8Users", fields: [userId], references: [id])
-  deckId      String? @db.ObjectId
-  deck        Deck?   @relation("TournamentTop8Decks", fields: [deckId], references: [id])
-  
-  @@unique([tournamentResultId, placement])
-}
-
-enum MatchStatus {
-  SCHEDULED
-  IN_PROGRESS
-  COMPLETED
-  BYE
-}
-
-model Match {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  tournament  Tournament @relation(fields: [tournamentId], references: [id])
-  tournamentId String  @db.ObjectId
-  round       Int
-  position    Int
-  player1     User?    @relation("Player1Matches", fields: [player1Id], references: [id])
-  player1Id   String?
-  player2     User?    @relation("Player2Matches", fields: [player2Id], references: [id])
-  player2Id   String?
-  winner      User?    @relation("WinnerMatches", fields: [winnerId], references: [id])
-  winnerId    String?
-  player1Score Int?
-  player2Score Int?
-  status      MatchStatus @default(SCHEDULED)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-}
-
-model User {
-  id            String    @id @default(uuid()) @map("_id")
-  name          String?
-  email         String?   @unique
-  emailVerified DateTime?
-  image         String?
-  accounts      Account[]
-  sessions      Session[]
-  posts         Post[]
-  tournamentParticipants TournamentParticipant[] @relation("TournamentParticipants")
-  organizedTournaments Tournament[] @relation("TournamentOrganizers")
-  player1Matches Match[] @relation("Player1Matches")
-  player2Matches Match[] @relation("Player2Matches")
-  winnerMatches  Match[] @relation("WinnerMatches")
-  eventLogs     EventLog[] // Add this relation field
-  decks         Deck[]
-  wonTournaments Tournament[] @relation("TournamentWinners")
-  tournamentResults TournamentResult[] @relation("TournamentResultWinners")
-  top8Placements TournamentTop8[] @relation("TournamentTop8Users")
-}
-
 model Deck {
   id          String   @id @default(auto()) @map("_id") @db.ObjectId
   name        String
@@ -159,33 +89,172 @@ model Deck {
   fileUrl     String   // S3 URL
   fileSize    Int      // File size in bytes
   uploadedAt  DateTime @default(now())
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId    String
-  participants TournamentParticipant[] @relation("ParticipantDeck")
-  top8Placements TournamentTop8[] @relation("TournamentTop8Decks")
+  user        User     @relation(fields: [userId], references: [id])
+  userId      String
+  tournamentParticipants TournamentParticipant[]
+  tournamentTop8s TournamentTop8[] @relation("TournamentTop8Decks")
+}
 
-  @@unique([userId, name]) // Ensure deck names are unique per user
+model Team {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdBy   User   @relation("TeamCreators", fields: [createdById], references: [id])
+  createdById String
+  teamSize    Int      @default(1) // 2, 3, or 5 for team tournaments
+
+  members      TeamMember[]
+  tournaments  TournamentTeam[]
+  wonTournaments Tournament[] @relation("TournamentTeamWinners")
+  tournamentResults TournamentResult[] @relation("TournamentResultTeamWinners")
+  top8Placements TournamentTop8[] @relation("TournamentTop8Teams")
+  team1Matches Match[] @relation("Team1Matches")
+  team2Matches Match[] @relation("Team2Matches")
+  winnerTeamMatches Match[] @relation("WinnerTeamMatches")
+  tournamentResultTop8s TournamentResultTop8Team[] @relation("TeamTop8Results")
+  
+  // Ensure team name is unique
+  @@unique([name])
+}
+
+model TeamMember {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  userId String
+  teamId String @db.ObjectId // Add native type for MongoDB join
+  role   String @default("member") // leader, member
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, teamId])
+}
+
+model TournamentTeam {
+  id           String @id @default(auto()) @map("_id") @db.ObjectId
+  tournamentId String @db.ObjectId
+  teamId       String @db.ObjectId
+  deckIds      String[] // Array of deck IDs for team members
+  joinedAt     DateTime @default(now()) // Track when team joined
+
+  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  team       Team       @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([tournamentId, teamId])
+  @@index([tournamentId])
+  @@index([teamId])
 }
 
 model TournamentParticipant {
-  id           String      @id @default(auto()) @map("_id") @db.ObjectId
-  tournament   Tournament  @relation(fields: [tournamentId], references: [id])
-  tournamentId String      @db.ObjectId
-  user         User        @relation(fields: [userId], references: [id], name: "TournamentParticipants")
-  userId    String
-  deckId    String?  @db.ObjectId
-  deck      Deck?    @relation("ParticipantDeck", fields: [deckId], references: [id])
-  
+  id           String @id @default(auto()) @map("_id") @db.ObjectId
+  tournamentId String @db.ObjectId
+  userId       String
+  deckId       String? @db.ObjectId
+
+  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  user       User       @relation("TournamentParticipants", fields: [userId], references: [id])
+  deck       Deck?      @relation(fields: [deckId], references: [id])
+
   @@unique([tournamentId, userId])
 }
 
-model EventLog {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  action    String
-  entity    String
-  entityId  String
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  details   Json?
-  createdAt DateTime @default(now())
+model Tournament {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  size        Int
+  bracketType String
+  teamSize    Int      @default(1) // 1 for 1v1, 2 for 2v2, 3 for 3v3, 5 for 5v5
+  rules       String
+  prize       String
+  startDate   DateTime
+  endDate     DateTime
+  organizer   User     @relation(fields: [organizerId], references: [id], name: "TournamentOrganizers")
+  organizerId String
+  participants TournamentParticipant[]
+  teams        TournamentTeam[]
+  matches      Match[]
+  started      Boolean  @default(false)
+  completed    Boolean  @default(false)
+  winnerId     String?
+  winner       User?    @relation("TournamentWinners", fields: [winnerId], references: [id])
+  winnerTeamId String? @db.ObjectId
+  winnerTeam   Team?    @relation("TournamentTeamWinners", fields: [winnerTeamId], references: [id])
+  completedAt  DateTime?
+  // Add missing relations with proper naming
+  results      TournamentResult[] @relation("TournamentResults")
+  top8s        TournamentTop8[] @relation("TournamentTop8s")
+}
+
+model Match {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  tournamentId String  @db.ObjectId
+  round       Int
+  player1Id   String?
+  player2Id   String?
+  team1Id     String? @db.ObjectId
+  team2Id     String? @db.ObjectId
+  player1     User?    @relation("Player1Matches", fields: [player1Id], references: [id])
+  player2     User?    @relation("Player2Matches", fields: [player2Id], references: [id])
+  team1       Team?    @relation("Team1Matches", fields: [team1Id], references: [id])
+  team2       Team?    @relation("Team2Matches", fields: [team2Id], references: [id])
+  winnerId    String?
+  winner      User?    @relation("WinnerMatches", fields: [winnerId], references: [id])
+  winnerTeamId String? @db.ObjectId
+  winnerTeam  Team?    @relation("WinnerTeamMatches", fields: [winnerTeamId], references: [id])
+  tournament  Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  
+  // Add indexes for better query performance
+  @@index([tournamentId, round])
+  @@index([player1Id])
+  @@index([player2Id])
+  @@index([team1Id])
+  @@index([team2Id])
+}
+
+model TournamentResult {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  tournamentId String  @unique @db.ObjectId
+  winnerId    String?
+  winnerTeamId String? @db.ObjectId
+  winner      User?    @relation("TournamentResultWinners", fields: [winnerId], references: [id])
+  winnerTeam  Team?    @relation("TournamentResultTeamWinners", fields: [winnerTeamId], references: [id])
+  tournament  Tournament @relation("TournamentResults", fields: [tournamentId], references: [id], onDelete: Cascade)
+  top8Users TournamentResultTop8User[] @relation("UserTop8Results")
+  top8Teams TournamentResultTop8Team[] @relation("TeamTop8Results")
+}
+
+model TournamentResultTop8User {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  tournamentResultId String @db.ObjectId
+  userId String
+  tournamentResult TournamentResult @relation("UserTop8Results", fields: [tournamentResultId], references: [id])
+  user User @relation("UserTop8Results", fields: [userId], references: [id])
+
+  @@unique([tournamentResultId, userId])
+}
+
+model TournamentResultTop8Team {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  tournamentResultId String @db.ObjectId
+  teamId String @db.ObjectId
+  tournamentResult TournamentResult @relation("TeamTop8Results", fields: [tournamentResultId], references: [id])
+  team Team @relation("TeamTop8Results", fields: [teamId], references: [id])
+
+  @@unique([tournamentResultId, teamId])
+}
+
+model TournamentTop8 {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  tournamentId String  @db.ObjectId
+  userId    String?
+  teamId String? @db.ObjectId
+  user      User?    @relation("TournamentTop8Users", fields: [userId], references: [id])
+  team  Team?    @relation("TournamentTop8Teams", fields: [teamId], references: [id])
+  deckId String? @db.ObjectId
+  deck Deck? @relation("TournamentTop8Decks", fields: [deckId], references: [id])
+  tournament  Tournament @relation("TournamentTop8s", fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  // Use compound id for uniqueness since MongoDB treats nulls as equal
+  @@unique([id, tournamentId, userId, teamId])
 }

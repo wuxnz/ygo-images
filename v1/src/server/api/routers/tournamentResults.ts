@@ -167,6 +167,80 @@ export const tournamentResultsRouter = createTRPCRouter({
 
       return result.top8[0];
     }),
+
+  // Get Swiss tournament results
+  getSwissResults: publicProcedure
+    .input(z.object({ tournamentId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      const tournament = await ctx.db.tournament.findUnique({
+        where: { id: input.tournamentId },
+        include: {
+          participants: {
+            include: {
+              user: true,
+              deck: true,
+            },
+          },
+          matches: true,
+        },
+      });
+
+      if (!tournament) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Tournament not found",
+        });
+      }
+
+      if (tournament.bracketType !== "SWISS") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "This endpoint is only for Swiss tournaments",
+        });
+      }
+
+      const { calculateSwissPlacements } = await import("@/lib/swissPairing");
+
+      const participants = tournament.participants.map((p) => ({
+        id: p.userId,
+        name: p.user.name || "Unknown",
+      }));
+
+      const matches = tournament.matches.map((m) => ({
+        id: m.id,
+        round: m.round,
+        player1Id: m.player1Id || undefined,
+        player2Id: m.player2Id || undefined,
+        winnerId: m.winnerId || undefined,
+        status: m.status,
+      }));
+
+      const placements = calculateSwissPlacements(participants, matches);
+
+      return {
+        tournament: {
+          id: tournament.id,
+          name: tournament.name,
+          size: tournament.size,
+          completed: tournament.completed,
+        },
+        placements: placements.map((placement) => ({
+          rank: placement.rank,
+          user: tournament.participants.find(
+            (p) => p.userId === placement.participant.id,
+          )?.user || {
+            id: placement.participant.id,
+            name: placement.participant.name,
+          },
+          deck: tournament.participants.find(
+            (p) => p.userId === placement.participant.id,
+          )?.deck,
+          wins: placement.wins,
+          losses: placement.losses,
+          points: placement.points,
+        })),
+      };
+    }),
 });
 
 // Helper function to calculate top 8 placements
