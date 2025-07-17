@@ -567,6 +567,7 @@ export const tournamentRouter = createTRPCRouter({
       const team = await ctx.db.team.create({
         data: {
           name: input.name,
+          code: code,
           createdById: ctx.session.user.id,
           teamSize: tournament.teamSize,
           members: {
@@ -669,10 +670,10 @@ export const tournamentRouter = createTRPCRouter({
         }
       }
 
-      // Find team by code (using team name as code for now)
+      // Find team by code
       const team = await ctx.db.team.findFirst({
         where: {
-          name: input.code,
+          code: input.code.toUpperCase(),
         },
         include: {
           members: true,
@@ -1123,6 +1124,48 @@ export const tournamentRouter = createTRPCRouter({
       });
 
       return { success: true };
+    }),
+
+  getTeamByCode: publicProcedure
+    .input(z.object({ code: z.string(), tournamentId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      const team = await ctx.db.team.findFirst({
+        where: {
+          code: input.code.toUpperCase(),
+        },
+        include: {
+          members: {
+            include: {
+              user: true,
+            },
+          },
+          tournaments: {
+            where: {
+              tournamentId: input.tournamentId,
+            },
+          },
+        },
+      });
+
+      if (!team || team.tournaments.length === 0) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Team not found or not registered for this tournament",
+        });
+      }
+
+      return {
+        id: team.id,
+        name: team.name,
+        code: team.code,
+        teamSize: team.teamSize,
+        memberCount: team.members.length,
+        members: team.members.map((m) => ({
+          id: m.user.id,
+          name: m.user.name,
+          role: m.role,
+        })),
+      };
     }),
 });
 

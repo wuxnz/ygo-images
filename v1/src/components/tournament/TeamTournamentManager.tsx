@@ -14,6 +14,7 @@ import {
   CreditCard,
   Eye,
 } from "lucide-react";
+import Link from "next/link";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,7 +34,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { DeckDetailView } from "@/components/deck/DeckDetailView";
 
 interface TeamTournamentManagerProps {
   tournament: {
@@ -102,11 +102,6 @@ export function TeamTournamentManager({
   const [selectedDecks, setSelectedDecks] = useState<Record<string, string>>(
     {},
   );
-  const [viewingDeck, setViewingDeck] = useState<{
-    deckId: string;
-    deckName: string;
-    userName: string;
-  } | null>(null);
 
   const utils = api.useUtils();
 
@@ -159,10 +154,6 @@ export function TeamTournamentManager({
       teamDecks.refetch();
     },
   });
-  const deckDetails = api.deck.getDeck.useQuery(
-    { id: viewingDeck?.deckId || "" },
-    { enabled: !!viewingDeck?.deckId },
-  );
 
   const leaveTeamMutation = api.tournament.leaveTeam.useMutation({
     onSuccess: () => {
@@ -177,6 +168,14 @@ export function TeamTournamentManager({
       setDeleteTeam(null);
     },
   });
+
+  const teamByCodeQuery = api.tournament.getTeamByCode.useQuery(
+    {
+      code: joinCode,
+      tournamentId: tournament.id,
+    },
+    { enabled: !!joinCode.trim() },
+  );
 
   const handleCreateTeam = () => {
     if (newTeamName.trim()) {
@@ -228,14 +227,6 @@ export function TeamTournamentManager({
     }
   };
 
-  const handleViewDeck = (
-    deckId: string,
-    deckName: string,
-    userName: string,
-  ) => {
-    setViewingDeck({ deckId, deckName, userName });
-  };
-
   const handleLeaveTeam = () => {
     if (leaveTeam) {
       leaveTeamMutation.mutate({
@@ -271,11 +262,11 @@ export function TeamTournamentManager({
                   {tournament.teamSize}
                 </p>
               </div>
-              {teamCode && (
+              {(userTeam.team.code || teamCode) && (
                 <div className="bg-muted rounded-lg p-3">
                   <p className="text-sm font-medium">Team Code:</p>
                   <p className="text-2xl font-bold tracking-wider">
-                    {teamCode}
+                    {userTeam.team.code || teamCode}
                   </p>
                   <p className="text-muted-foreground text-xs">
                     Share this code with teammates so they can join your team
@@ -336,21 +327,18 @@ export function TeamTournamentManager({
 
                         {(isCreator || isCurrentUser) &&
                           memberDeck?.deckName && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() =>
-                                handleViewDeck(
-                                  memberDeck.deckId || "",
-                                  memberDeck.deckName || "Unnamed Deck",
-                                  member.user.name || "Anonymous",
-                                )
-                              }
-                              className="h-8 text-xs"
+                            <Link
+                              href={`/deck/${tournament.id}/${memberDeck.deckId}`}
                             >
-                              <Eye className="mr-1 h-3 w-3" />
-                              View
-                            </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 text-xs"
+                              >
+                                <Eye className="mr-1 h-3 w-3" />
+                                View
+                              </Button>
+                            </Link>
                           )}
 
                         {!isCreator &&
@@ -528,26 +516,13 @@ export function TeamTournamentManager({
                       </div>
                     </div>
 
-                    {team.code && (
+                    {!isTeamMember(team.members, currentUserId) && (
                       <div className="mt-3 border-t pt-3">
-                        {isTeamMember(team.members, currentUserId) ? (
-                          <p className="text-muted-foreground text-sm">
-                            <span className="font-medium">Team Code:</span>{" "}
-                            <span className="font-mono font-bold">
-                              {team.code}
-                            </span>
-                          </p>
-                        ) : team.members.length < tournament.teamSize ? (
-                          <p className="text-muted-foreground text-xs">
-                            This team has{" "}
-                            {tournament.teamSize - team.members.length} open
-                            spot(s)
-                          </p>
-                        ) : (
-                          <p className="text-muted-foreground text-xs">
-                            Team is full
-                          </p>
-                        )}
+                        <p className="text-muted-foreground text-xs">
+                          {team.members.length < tournament.teamSize
+                            ? `This team has ${tournament.teamSize - team.members.length} open spot(s)`
+                            : "Team is full"}
+                        </p>
                       </div>
                     )}
                   </div>
@@ -632,8 +607,50 @@ export function TeamTournamentManager({
                 value={joinCode}
                 onChange={(e) => setJoinCode(e.target.value)}
                 placeholder="Enter team code"
+                className="uppercase"
               />
             </div>
+
+            {/* Team Preview */}
+            {joinCode.trim() && teamByCodeQuery.data && (
+              <div className="rounded-lg border p-4">
+                <h4 className="mb-2 font-semibold">Team Details</h4>
+                <div className="space-y-2 text-sm">
+                  <div>
+                    <span className="font-medium">Name:</span>{" "}
+                    {teamByCodeQuery.data.name}
+                  </div>
+                  <div>
+                    <span className="font-medium">Members:</span>{" "}
+                    {teamByCodeQuery.data.memberCount ?? 0} /{" "}
+                    {tournament.teamSize}
+                  </div>
+                  <div>
+                    <span className="font-medium">Team Members:</span>
+                    <ul className="mt-1 ml-4 list-disc">
+                      {teamByCodeQuery.data.members.map(
+                        (member: { id: string; name: string | null }) => (
+                          <li key={member.id}>{member.name}</li>
+                        ),
+                      )}
+                    </ul>
+                  </div>
+                  {(teamByCodeQuery.data.memberCount ?? 0) >=
+                    tournament.teamSize && (
+                    <div className="font-medium text-red-600">
+                      This team is full
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {joinCode.trim() && teamByCodeQuery.isError && (
+              <div className="text-sm text-red-600">
+                Team not found or not registered for this tournament
+              </div>
+            )}
+
             <div>
               <Label htmlFor="joinDeck" className="mb-2">
                 Select Deck (Optional)
@@ -661,7 +678,11 @@ export function TeamTournamentManager({
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleJoinTeam}
-              disabled={!joinCode.trim() || joinTeamMutation.isPending}
+              disabled={
+                !joinCode.trim() ||
+                joinTeamMutation.isPending ||
+                (teamByCodeQuery.data?.memberCount ?? 0) >= tournament.teamSize
+              }
             >
               {joinTeamMutation.isPending ? "Joining..." : "Join Team"}
             </AlertDialogAction>
@@ -713,101 +734,7 @@ export function TeamTournamentManager({
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* View Deck Modal */}
-      <AlertDialog
-        open={!!viewingDeck}
-        onOpenChange={() => setViewingDeck(null)}
-      >
-        <AlertDialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {viewingDeck?.deckName} - {viewingDeck?.userName}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              Detailed deck information and card list
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-
-          <div className="space-y-4">
-            {deckDetails.isLoading ? (
-              <div className="flex justify-center py-8">
-                <div className="border-primary h-8 w-8 animate-spin rounded-full border-b-2"></div>
-              </div>
-            ) : deckDetails.data ? (
-              <div className="space-y-4">
-                {deckDetails.data.fileUrl ? (
-                  <DeckDetailView
-                    deck={{
-                      id: deckDetails.data.id,
-                      name: deckDetails.data.name,
-                      description:
-                        (deckDetails.data as any).description || null,
-                      fileUrl: deckDetails.data.fileUrl,
-                      fileName:
-                        (deckDetails.data as any).fileName ||
-                        `${deckDetails.data.name}.ydk`,
-                      fileSize: (deckDetails.data as any).fileSize || 0,
-                      uploadedAt:
-                        (deckDetails.data as any).uploadedAt || new Date(),
-                      format: (deckDetails.data as any).format,
-                      powerLevel: (deckDetails.data as any).powerLevel,
-                      commander: (deckDetails.data as any).commander,
-                      deckList: (deckDetails.data as any).deckList,
-                    }}
-                    userName={viewingDeck?.userName || "Unknown User"}
-                  />
-                ) : (
-                  <div className="space-y-4">
-                    {(deckDetails.data as any).commander && (
-                      <div>
-                        <span className="font-semibold">Commander: </span>
-                        <span>{(deckDetails.data as any).commander}</span>
-                      </div>
-                    )}
-
-                    {(deckDetails.data as any).description && (
-                      <div>
-                        <span className="font-semibold">Description: </span>
-                        <span>{(deckDetails.data as any).description}</span>
-                      </div>
-                    )}
-
-                    <div>
-                      <span className="font-semibold">Deck List:</span>
-                      <pre className="bg-muted mt-2 rounded-md p-3 text-sm whitespace-pre-wrap">
-                        {(deckDetails.data as any).deckList ||
-                          "No deck list provided"}
-                      </pre>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div>
-                        <span className="font-semibold">Format: </span>
-                        <span>{(deckDetails.data as any).format}</span>
-                      </div>
-                      <div>
-                        <span className="font-semibold">Power Level: </span>
-                        <span>
-                          {(deckDetails.data as any).powerLevel ||
-                            "Not specified"}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <p className="text-muted-foreground py-8 text-center">
-                No deck details available
-              </p>
-            )}
-          </div>
-
-          <AlertDialogFooter>
-            <AlertDialogCancel>Close</AlertDialogCancel>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* View Deck Modal removed - now using dedicated deck page */}
 
       {/* Leave Team Dialog */}
       <AlertDialog open={!!leaveTeam} onOpenChange={() => setLeaveTeam(null)}>
