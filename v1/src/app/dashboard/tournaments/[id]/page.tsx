@@ -300,7 +300,7 @@ export default function TournamentDetailPage() {
             </Button>
           </>
         )}
-        {!isCreator && !isParticipant && (
+        {!isCreator && !isParticipant && tournament.teamSize === 1 && (
           <Button
             onClick={handleJoin}
             disabled={joinMutation.isPending}
@@ -324,10 +324,10 @@ export default function TournamentDetailPage() {
               >
                 <Select
                   onValueChange={(value) => form.setValue("deckId", value)}
-                  defaultValue={
+                  value={
                     tournament.participants.find(
                       (p) => p.userId === session?.user?.id,
-                    )?.deckId ?? ""
+                    )?.deckId || undefined
                   }
                 >
                   <SelectTrigger className="w-[180px]">

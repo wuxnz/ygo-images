@@ -77,6 +77,10 @@ export function TeamTournamentManager({
   const [newTeamName, setNewTeamName] = useState("");
   const [joinCode, setJoinCode] = useState("");
   const [teamCode, setTeamCode] = useState<string | null>(null);
+  const [selectedDeckForCreate, setSelectedDeckForCreate] =
+    useState<string>("none");
+  const [selectedDeckForJoin, setSelectedDeckForJoin] =
+    useState<string>("none");
   const [kickMember, setKickMember] = useState<{
     teamId: string;
     userId: string;
@@ -179,6 +183,8 @@ export function TeamTournamentManager({
       createTeamMutation.mutate({
         name: newTeamName,
         tournamentId: tournament.id,
+        deckId:
+          selectedDeckForCreate !== "none" ? selectedDeckForCreate : undefined,
       });
     }
   };
@@ -188,6 +194,8 @@ export function TeamTournamentManager({
       joinTeamMutation.mutate({
         code: joinCode,
         tournamentId: tournament.id,
+        deckId:
+          selectedDeckForJoin !== "none" ? selectedDeckForJoin : undefined,
       });
     }
   };
@@ -556,7 +564,8 @@ export function TeamTournamentManager({
           <AlertDialogHeader>
             <AlertDialogTitle>Create New Team</AlertDialogTitle>
             <AlertDialogDescription>
-              Enter a name for your team. You'll be the team leader.
+              Enter a name for your team and select your deck. You'll be the
+              team leader.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-4">
@@ -570,6 +579,28 @@ export function TeamTournamentManager({
                 onChange={(e) => setNewTeamName(e.target.value)}
                 placeholder="Enter team name"
               />
+            </div>
+            <div>
+              <Label htmlFor="createDeck" className="mb-2">
+                Select Deck (Optional)
+              </Label>
+              <Select
+                value={selectedDeckForCreate}
+                onValueChange={setSelectedDeckForCreate}
+                disabled={userDecks.isLoading}
+              >
+                <SelectTrigger id="createDeck">
+                  <SelectValue placeholder="Choose a deck..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No deck selected</SelectItem>
+                  {userDecks.data?.map((deck) => (
+                    <SelectItem key={deck.id} value={deck.id}>
+                      {deck.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <AlertDialogFooter>
@@ -590,7 +621,7 @@ export function TeamTournamentManager({
           <AlertDialogHeader>
             <AlertDialogTitle>Join Team</AlertDialogTitle>
             <AlertDialogDescription>
-              Enter the team code to join an existing team.
+              Enter the team code to join an existing team and select your deck.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-4">
@@ -602,6 +633,28 @@ export function TeamTournamentManager({
                 onChange={(e) => setJoinCode(e.target.value)}
                 placeholder="Enter team code"
               />
+            </div>
+            <div>
+              <Label htmlFor="joinDeck" className="mb-2">
+                Select Deck (Optional)
+              </Label>
+              <Select
+                value={selectedDeckForJoin}
+                onValueChange={setSelectedDeckForJoin}
+                disabled={userDecks.isLoading}
+              >
+                <SelectTrigger id="joinDeck">
+                  <SelectValue placeholder="Choose a deck..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No deck selected</SelectItem>
+                  {userDecks.data?.map((deck) => (
+                    <SelectItem key={deck.id} value={deck.id}>
+                      {deck.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <AlertDialogFooter>

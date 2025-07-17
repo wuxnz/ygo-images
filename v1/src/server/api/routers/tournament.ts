@@ -478,6 +478,7 @@ export const tournamentRouter = createTRPCRouter({
       z.object({
         name: z.string(),
         tournamentId: z.string(),
+        deckId: z.string().optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -542,6 +543,23 @@ export const tournamentRouter = createTRPCRouter({
         });
       }
 
+      // Validate deck if provided
+      if (input.deckId) {
+        const deck = await ctx.db.deck.findFirst({
+          where: {
+            id: input.deckId,
+            userId: ctx.session.user.id,
+          },
+        });
+
+        if (!deck) {
+          throw new TRPCError({
+            code: "UNAUTHORIZED",
+            message: "Deck not found or does not belong to you",
+          });
+        }
+      }
+
       // Generate unique team code
       const code = Math.random().toString(36).substring(2, 8).toUpperCase();
 
@@ -561,10 +579,11 @@ export const tournamentRouter = createTRPCRouter({
       });
 
       // Add team to tournament
-      await ctx.db.tournamentTeam.create({
+      const tournamentTeam = await ctx.db.tournamentTeam.create({
         data: {
           tournamentId: input.tournamentId,
           teamId: team.id,
+          deckIds: input.deckId ? [input.deckId] : [],
         },
       });
 
@@ -579,6 +598,7 @@ export const tournamentRouter = createTRPCRouter({
       z.object({
         code: z.string(),
         tournamentId: z.string(),
+        deckId: z.string().optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -632,6 +652,23 @@ export const tournamentRouter = createTRPCRouter({
         });
       }
 
+      // Validate deck if provided
+      if (input.deckId) {
+        const deck = await ctx.db.deck.findFirst({
+          where: {
+            id: input.deckId,
+            userId: ctx.session.user.id,
+          },
+        });
+
+        if (!deck) {
+          throw new TRPCError({
+            code: "UNAUTHORIZED",
+            message: "Deck not found or does not belong to you",
+          });
+        }
+      }
+
       // Find team by code (using team name as code for now)
       const team = await ctx.db.team.findFirst({
         where: {
@@ -669,6 +706,38 @@ export const tournamentRouter = createTRPCRouter({
           role: "member",
         },
       });
+
+      // Update team deck IDs if deck provided
+      if (input.deckId) {
+        const tournamentTeam = await ctx.db.tournamentTeam.findFirst({
+          where: {
+            tournamentId: input.tournamentId,
+            teamId: team.id,
+          },
+        });
+
+        if (tournamentTeam) {
+          const currentDeckIds = tournamentTeam.deckIds || [];
+          const teamMembers = await ctx.db.teamMember.findMany({
+            where: { teamId: team.id },
+            orderBy: { id: "asc" },
+          });
+
+          const memberIndex = teamMembers.findIndex(
+            (m) => m.userId === ctx.session.user.id,
+          );
+
+          if (memberIndex !== -1) {
+            const newDeckIds = [...currentDeckIds];
+            newDeckIds[memberIndex] = input.deckId;
+
+            await ctx.db.tournamentTeam.update({
+              where: { id: tournamentTeam.id },
+              data: { deckIds: newDeckIds },
+            });
+          }
+        }
+      }
 
       return { success: true };
     }),
