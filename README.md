@@ -204,13 +204,6 @@ Organizers can create tournaments with:
 3. Add environment variables
 4. Deploy
 
-### Docker
-
-```bash
-docker build -t topdeck-circuit .
-docker run -p 3000:3000 --env-file .env topdeck-circuit
-```
-
 ## 🤝 Contributing
 
 We welcome contributions! Please see our contributing guidelines:
