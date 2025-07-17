@@ -41,10 +41,22 @@ export default async function DeckPage({ params }: DeckPageProps) {
   // Attempt to fetch and parse the deck file.
   let parsed: ReturnType<typeof parseYdk> | null = null;
   try {
-    const res = await fetch(deck.fileUrl, { cache: "no-store" });
+    // Use a proxy endpoint to avoid CORS issues
+    const proxyUrl = `/api/proxy-deck?url=${encodeURIComponent(deck.fileUrl)}`;
+    const res = await fetch(proxyUrl, { cache: "no-store" });
     if (res.ok) {
       const text = await res.text();
       parsed = parseYdk(text);
+    } else {
+      // Fallback to direct fetch if proxy fails
+      const directRes = await fetch(deck.fileUrl, {
+        cache: "no-store",
+        mode: "cors",
+      });
+      if (directRes.ok) {
+        const text = await directRes.text();
+        parsed = parseYdk(text);
+      }
     }
   } catch {
     // ignore errors, keep parsed null
