@@ -25,7 +25,7 @@ export function CardImage({
   const [popupPosition, setPopupPosition] = useState({ x: 0, y: 0 });
   const imageRef = useRef<HTMLDivElement>(null);
 
-  const imagePath = `https://media.githubusercontent.com/media/wuxnz/gokaku/refs/heads/master/v1/public/images/${cardId}.jpg`;
+  const imagePath = `https://media.githubusercontent.com/media/wuxnz/gokaku/refs/heads/master/public/images/${cardId}.jpg`;
 
   const handleImageError = () => {
     setImageError(true);
