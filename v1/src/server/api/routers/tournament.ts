@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
-import { MatchStatus, Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 
 export const tournamentRouter = createTRPCRouter({
   create: protectedProcedure
@@ -9,6 +9,7 @@ export const tournamentRouter = createTRPCRouter({
       z.object({
         name: z.string(),
         size: z.number(),
+        teamSize: z.number().min(1).max(5).default(1),
         bracketType: z.string(),
         rules: z.string(),
         prize: z.string(),
@@ -32,7 +33,6 @@ export const tournamentRouter = createTRPCRouter({
         data: {
           ...input,
           organizerId: ctx.session.user.id,
-          creatorId: ctx.session.user.id,
         },
       });
       return tournament;
@@ -60,6 +60,19 @@ export const tournamentRouter = createTRPCRouter({
             },
           },
           organizer: true,
+          teams: {
+            include: {
+              team: {
+                include: {
+                  members: {
+                    include: {
+                      user: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
         },
       });
       if (!tournament) {
@@ -224,10 +237,7 @@ export const tournamentRouter = createTRPCRouter({
           message: "Tournament not found",
         });
       }
-      if (
-        tournament.organizerId !== ctx.session.user.id &&
-        tournament.creatorId !== ctx.session.user.id
-      ) {
+      if (tournament.organizerId !== ctx.session.user.id) {
         throw new TRPCError({
           code: "UNAUTHORIZED",
           message: "Only the organizer can start this tournament",
@@ -258,10 +268,7 @@ export const tournamentRouter = createTRPCRouter({
       // Create matches in DB
       for (const match of matches) {
         const created = await ctx.db.match.create({
-          data: {
-            ...match,
-            status: match.status as MatchStatus,
-          },
+          data: match,
         });
         console.log("Created match:", created);
       }
@@ -299,10 +306,7 @@ export const tournamentRouter = createTRPCRouter({
         });
       }
 
-      if (
-        tournament.organizerId !== ctx.session.user.id &&
-        tournament.creatorId !== ctx.session.user.id
-      ) {
+      if (tournament.organizerId !== ctx.session.user.id) {
         throw new TRPCError({
           code: "UNAUTHORIZED",
           message: "Only the organizer can complete this tournament",
@@ -325,7 +329,7 @@ export const tournamentRouter = createTRPCRouter({
 
       // Check if all matches are completed
       const allMatchesCompleted = tournament.matches.every(
-        (match) => match.status === "COMPLETED",
+        (match) => match.winnerId !== null || match.winnerTeamId !== null,
       );
 
       if (!allMatchesCompleted) {
@@ -369,10 +373,6 @@ export const tournamentRouter = createTRPCRouter({
         data: {
           tournamentId: input.id,
           winnerId: winner.userId,
-          totalParticipants: tournament.participants.length,
-          top8: {
-            create: top8Placements,
-          },
         },
       });
 
@@ -471,47 +471,357 @@ export const tournamentRouter = createTRPCRouter({
 
       return { success: true };
     }),
+
+  // Team management endpoints
+  createTeam: protectedProcedure
+    .input(
+      z.object({
+        name: z.string(),
+        tournamentId: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const tournament = await ctx.db.tournament.findUnique({
+        where: { id: input.tournamentId },
+        include: {
+          teams: true,
+        },
+      });
+
+      if (!tournament) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Tournament not found",
+        });
+      }
+
+      if (tournament.started) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Cannot create teams after tournament has started",
+        });
+      }
+
+      // Check if user is already in a team for this tournament
+      const existingTeamMember = await ctx.db.teamMember.findFirst({
+        where: {
+          userId: ctx.session.user.id,
+          team: {
+            tournaments: {
+              some: {
+                tournamentId: input.tournamentId,
+              },
+            },
+          },
+        },
+      });
+
+      if (existingTeamMember) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "You are already in a team for this tournament",
+        });
+      }
+
+      // Generate unique team code
+      const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+
+      // Create team
+      const team = await ctx.db.team.create({
+        data: {
+          name: input.name,
+          createdById: ctx.session.user.id,
+          teamSize: tournament.teamSize,
+          members: {
+            create: {
+              userId: ctx.session.user.id,
+              role: "leader",
+            },
+          },
+        },
+      });
+
+      // Add team to tournament
+      await ctx.db.tournamentTeam.create({
+        data: {
+          tournamentId: input.tournamentId,
+          teamId: team.id,
+        },
+      });
+
+      return {
+        teamId: team.id,
+        code,
+      };
+    }),
+
+  joinTeam: protectedProcedure
+    .input(
+      z.object({
+        code: z.string(),
+        tournamentId: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const tournament = await ctx.db.tournament.findUnique({
+        where: { id: input.tournamentId },
+        include: {
+          teams: {
+            include: {
+              team: {
+                include: {
+                  members: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (!tournament) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Tournament not found",
+        });
+      }
+
+      if (tournament.started) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Cannot join teams after tournament has started",
+        });
+      }
+
+      // Check if user is already in a team for this tournament
+      const existingTeamMember = await ctx.db.teamMember.findFirst({
+        where: {
+          userId: ctx.session.user.id,
+          team: {
+            tournaments: {
+              some: {
+                tournamentId: input.tournamentId,
+              },
+            },
+          },
+        },
+      });
+
+      if (existingTeamMember) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "You are already in a team for this tournament",
+        });
+      }
+
+      // Find team by code (using team name as code for now)
+      const team = await ctx.db.team.findFirst({
+        where: {
+          name: input.code,
+        },
+        include: {
+          members: true,
+          tournaments: {
+            where: {
+              tournamentId: input.tournamentId,
+            },
+          },
+        },
+      });
+
+      if (!team || team.tournaments.length === 0) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Team not found or not registered for this tournament",
+        });
+      }
+
+      if (team.members.length >= tournament.teamSize) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Team is full",
+        });
+      }
+
+      // Add user to team
+      await ctx.db.teamMember.create({
+        data: {
+          userId: ctx.session.user.id,
+          teamId: team.id,
+          role: "member",
+        },
+      });
+
+      return { success: true };
+    }),
+
+  kickTeamMember: protectedProcedure
+    .input(
+      z.object({
+        teamId: z.string(),
+        userId: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      // Check if user is team leader
+      const teamMember = await ctx.db.teamMember.findFirst({
+        where: {
+          teamId: input.teamId,
+          userId: ctx.session.user.id,
+          role: "leader",
+        },
+      });
+
+      if (!teamMember) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "Only team leaders can kick members",
+        });
+      }
+
+      // Cannot kick yourself
+      if (input.userId === ctx.session.user.id) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Cannot kick yourself from the team",
+        });
+      }
+
+      // Remove member from team
+      await ctx.db.teamMember.deleteMany({
+        where: {
+          teamId: input.teamId,
+          userId: input.userId,
+        },
+      });
+
+      return { success: true };
+    }),
+
+  banTeamMember: protectedProcedure
+    .input(
+      z.object({
+        teamId: z.string(),
+        userId: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      // Check if user is team leader
+      const teamMember = await ctx.db.teamMember.findFirst({
+        where: {
+          teamId: input.teamId,
+          userId: ctx.session.user.id,
+          role: "leader",
+        },
+      });
+
+      if (!teamMember) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "Only team leaders can ban members",
+        });
+      }
+
+      // Cannot ban yourself
+      if (input.userId === ctx.session.user.id) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Cannot ban yourself from the team",
+        });
+      }
+
+      // Remove member from team (ban is just removal - they can't rejoin)
+      await ctx.db.teamMember.deleteMany({
+        where: {
+          teamId: input.teamId,
+          userId: input.userId,
+        },
+      });
+
+      return { success: true };
+    }),
 });
 
 // Helper function to calculate top 8 placements
 function calculateTop8Placements(tournament: any) {
-  const matches = tournament.matches;
-  const participants = tournament.participants;
+  const matches = tournament.matches || [];
+  const participants = tournament.participants || [];
+
+  if (matches.length === 0) {
+    return [];
+  }
 
   // Build placement array
   const placementMap = new Map<number, { userId: string; deckId?: string }>();
 
   // 1st place: winner of final match
-  const maxRound = Math.max(...matches.map((m: any) => m.round));
+  const maxRound = Math.max(...matches.map((m: any) => m.round), 0);
+  if (maxRound === 0) return [];
+
   const finalMatch = matches.find(
-    (m: any) => m.round === maxRound && m.status === "COMPLETED",
+    (m: any) =>
+      m.round === maxRound && (m.winnerId !== null || m.winnerTeamId !== null),
   );
-  const winnerId = finalMatch?.winnerId;
+
+  if (!finalMatch) {
+    return [];
+  }
+
+  let winnerId: string | null = null;
+  if (tournament.teamSize > 1) {
+    winnerId = finalMatch.winnerTeamId;
+  } else {
+    winnerId = finalMatch.winnerId;
+  }
 
   if (winnerId) {
-    const winnerParticipant = participants.find(
-      (p: any) => p.userId === winnerId,
-    );
-    placementMap.set(1, {
-      userId: winnerId,
-      deckId: winnerParticipant?.deckId,
-    });
+    if (tournament.teamSize > 1) {
+      // For team tournaments, use team ID
+      placementMap.set(1, {
+        userId: winnerId,
+      });
+    } else {
+      // For individual tournaments
+      const winnerParticipant = participants.find(
+        (p: any) => p.userId === winnerId,
+      );
+      placementMap.set(1, {
+        userId: winnerId,
+        deckId: winnerParticipant?.deckId,
+      });
+    }
   }
 
   // 2nd place: loser of final match
-  if (finalMatch?.winnerId && finalMatch.player1Id && finalMatch.player2Id) {
-    const secondPlaceId =
-      finalMatch.winnerId === finalMatch.player1Id
-        ? finalMatch.player2Id
-        : finalMatch.player1Id;
-    const secondParticipant = participants.find(
-      (p: any) => p.userId === secondPlaceId,
-    );
-    if (secondParticipant) {
-      placementMap.set(2, {
-        userId: secondPlaceId,
-        deckId: secondParticipant.deckId,
-      });
+  if (finalMatch.winnerId || finalMatch.winnerTeamId) {
+    let secondPlaceId: string | null = null;
+    const winnerField =
+      tournament.teamSize > 1 ? finalMatch.winnerTeamId : finalMatch.winnerId;
+    const player1Field =
+      tournament.teamSize > 1 ? finalMatch.team1Id : finalMatch.player1Id;
+    const player2Field =
+      tournament.teamSize > 1 ? finalMatch.team2Id : finalMatch.player2Id;
+
+    if (winnerField && player1Field && player2Field) {
+      secondPlaceId =
+        winnerField === player1Field ? player2Field : player1Field;
+    }
+
+    if (secondPlaceId) {
+      if (tournament.teamSize > 1) {
+        placementMap.set(2, {
+          userId: secondPlaceId,
+        });
+      } else {
+        const secondParticipant = participants.find(
+          (p: any) => p.userId === secondPlaceId,
+        );
+        if (secondParticipant) {
+          placementMap.set(2, {
+            userId: secondPlaceId,
+            deckId: secondParticipant.deckId,
+          });
+        }
+      }
     }
   }
 
@@ -520,17 +830,28 @@ function calculateTop8Placements(tournament: any) {
   const semiFinalists: string[] = [];
 
   semiFinalMatches.forEach((match: any) => {
-    if (match.status === "COMPLETED" && match.winnerId) {
+    const winnerField =
+      tournament.teamSize > 1 ? match.winnerTeamId : match.winnerId;
+    const player1Field =
+      tournament.teamSize > 1 ? match.team1Id : match.player1Id;
+    const player2Field =
+      tournament.teamSize > 1 ? match.team2Id : match.player2Id;
+
+    if (winnerField && player1Field && player2Field) {
       const loserId =
-        match.winnerId === match.player1Id ? match.player2Id : match.player1Id;
+        winnerField === player1Field ? player2Field : player1Field;
       if (loserId) semiFinalists.push(loserId);
     }
   });
 
   semiFinalists.forEach((userId, index) => {
-    const participant = participants.find((p: any) => p.userId === userId);
-    if (participant) {
-      placementMap.set(index + 3, { userId, deckId: participant.deckId });
+    if (tournament.teamSize > 1) {
+      placementMap.set(index + 3, { userId });
+    } else {
+      const participant = participants.find((p: any) => p.userId === userId);
+      if (participant) {
+        placementMap.set(index + 3, { userId, deckId: participant.deckId });
+      }
     }
   });
 
@@ -542,19 +863,28 @@ function calculateTop8Placements(tournament: any) {
     const quarterFinalists: string[] = [];
 
     quarterFinalMatches.forEach((match: any) => {
-      if (match.status === "COMPLETED" && match.winnerId) {
+      const winnerField =
+        tournament.teamSize > 1 ? match.winnerTeamId : match.winnerId;
+      const player1Field =
+        tournament.teamSize > 1 ? match.team1Id : match.player1Id;
+      const player2Field =
+        tournament.teamSize > 1 ? match.team2Id : match.player2Id;
+
+      if (winnerField && player1Field && player2Field) {
         const loserId =
-          match.winnerId === match.player1Id
-            ? match.player2Id
-            : match.player1Id;
+          winnerField === player1Field ? player2Field : player1Field;
         if (loserId) quarterFinalists.push(loserId);
       }
     });
 
     quarterFinalists.forEach((userId, index) => {
-      const participant = participants.find((p: any) => p.userId === userId);
-      if (participant) {
-        placementMap.set(index + 5, { userId, deckId: participant.deckId });
+      if (tournament.teamSize > 1) {
+        placementMap.set(index + 5, { userId });
+      } else {
+        const participant = participants.find((p: any) => p.userId === userId);
+        if (participant) {
+          placementMap.set(index + 5, { userId, deckId: participant.deckId });
+        }
       }
     });
   }

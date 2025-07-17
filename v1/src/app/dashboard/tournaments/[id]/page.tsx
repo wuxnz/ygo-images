@@ -21,6 +21,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
 import { TournamentParticipantCard } from "@/components/tournament/TournamentParticipantCard";
+import { TeamTournamentManager } from "@/components/tournament/TeamTournamentManager";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -156,7 +157,7 @@ export default function TournamentDetailPage() {
     resolver: zodResolver(deckSchema),
   });
 
-  const isCreator = tournament?.creatorId === session?.user?.id;
+  const isCreator = tournament?.organizerId === session?.user?.id;
   const [isParticipant, setIsParticipant] = useState(
     tournament?.participants.some(
       (participant) => participant.userId === session?.user?.id,
@@ -204,7 +205,11 @@ export default function TournamentDetailPage() {
         </CardHeader>
         <CardContent>
           <p>
-            <strong>Size:</strong> {tournament.size} teams
+            <strong>Size:</strong> {tournament.size} participants
+          </p>
+          <p>
+            <strong>Team Size:</strong> {tournament.teamSize}v
+            {tournament.teamSize}
           </p>
           <p>
             <strong>Bracket Type:</strong> {tournament.bracketType}
@@ -225,33 +230,44 @@ export default function TournamentDetailPage() {
         </CardContent>
       </Card>
 
-      <Card className="border">
-        <CardHeader>
-          <CardTitle className="text-lg">Participants</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {tournament.participants?.length > 0 ? (
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {tournament.participants.map((participant) => (
-                <TournamentParticipantCard
-                  key={participant.id}
-                  participant={participant}
-                  isCreator={isCreator}
-                  currentUserId={session?.user?.id}
-                  onKickSuccess={() => {
-                    utils.tournament.getById.invalidate({ id });
-                  }}
-                  onBanSuccess={() => {
-                    utils.tournament.getById.invalidate({ id });
-                  }}
-                />
-              ))}
-            </div>
-          ) : (
-            <p>No participants yet</p>
-          )}
-        </CardContent>
-      </Card>
+      {tournament.teamSize > 1 ? (
+        <TeamTournamentManager
+          tournament={tournament}
+          isCreator={isCreator}
+          currentUserId={session?.user?.id}
+          onUpdate={() => {
+            utils.tournament.getById.invalidate({ id });
+          }}
+        />
+      ) : (
+        <Card className="border">
+          <CardHeader>
+            <CardTitle className="text-lg">Participants</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {tournament.participants?.length > 0 ? (
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {tournament.participants.map((participant) => (
+                  <TournamentParticipantCard
+                    key={participant.id}
+                    participant={participant}
+                    isCreator={isCreator}
+                    currentUserId={session?.user?.id}
+                    onKickSuccess={() => {
+                      utils.tournament.getById.invalidate({ id });
+                    }}
+                    onBanSuccess={() => {
+                      utils.tournament.getById.invalidate({ id });
+                    }}
+                  />
+                ))}
+              </div>
+            ) : (
+              <p>No participants yet</p>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <div className="flex gap-2">
         {isCreator && (
@@ -396,7 +412,13 @@ export default function TournamentDetailPage() {
                 player1Id: m.player1Id ?? undefined,
                 player2Id: m.player2Id ?? undefined,
                 winnerId: m.winnerId ?? undefined,
-                status: m.status,
+                status: m.status as string,
+                player1: m.player1
+                  ? { id: m.player1.id, name: m.player1.name || "Unknown" }
+                  : undefined,
+                player2: m.player2
+                  ? { id: m.player2.id, name: m.player2.name || "Unknown" }
+                  : undefined,
               }))}
               participants={
                 tournament.participants?.map((p) => ({

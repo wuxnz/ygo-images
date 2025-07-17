@@ -65,20 +65,48 @@ export const tournamentResultsRouter = createTRPCRouter({
       const result = await ctx.db.tournamentResult.create({
         data: {
           tournamentId: input.tournamentId,
-          winnerId: finalMatch.winnerId,
-          totalParticipants: tournament.participants.length,
-          top8: {
-            create: top8Placements,
-          },
+          winnerId: tournament.teamSize === 1 ? finalMatch.winnerId : undefined,
+          winnerTeamId:
+            tournament.teamSize > 1 ? finalMatch.winnerId : undefined,
         },
       });
+
+      // Create top 8 placements based on tournament type
+      if (tournament.teamSize === 1) {
+        // Individual tournament
+        for (const placement of top8Placements) {
+          if (placement.userId) {
+            await ctx.db.tournamentResultTop8User.create({
+              data: {
+                tournamentResultId: result.id,
+                userId: placement.userId,
+              },
+            });
+          }
+        }
+      } else {
+        // Team tournament
+        for (const placement of top8Placements) {
+          if (placement.userId) {
+            await ctx.db.tournamentResultTop8Team.create({
+              data: {
+                tournamentResultId: result.id,
+                teamId: placement.userId,
+              },
+            });
+          }
+        }
+      }
 
       // Mark tournament as completed
       await ctx.db.tournament.update({
         where: { id: input.tournamentId },
         data: {
           completed: true,
-          winnerId: finalMatch.winnerId,
+          winnerId: tournament.teamSize === 1 ? finalMatch.winnerId : undefined,
+          winnerTeamId:
+            tournament.teamSize > 1 ? finalMatch.winnerId : undefined,
+          completedAt: new Date(),
         },
       });
 
@@ -93,9 +121,7 @@ export const tournamentResultsRouter = createTRPCRouter({
         winner: {
           select: { id: true, name: true, image: true },
         },
-        results: {
-          select: { totalParticipants: true, completedAt: true },
-        },
+        results: true,
       },
       orderBy: { endDate: "desc" },
     });
@@ -112,14 +138,18 @@ export const tournamentResultsRouter = createTRPCRouter({
           winner: {
             select: { id: true, name: true, image: true },
           },
-          top8: {
+          winnerTeam: true,
+          top8Users: {
             include: {
               user: {
                 select: { id: true, name: true, image: true },
               },
-              deck: true,
             },
-            orderBy: { placement: "asc" },
+          },
+          top8Teams: {
+            include: {
+              team: true,
+            },
           },
         },
       });
@@ -143,29 +173,77 @@ export const tournamentResultsRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      const result = await ctx.db.tournamentResult.findUnique({
-        where: { tournamentId: input.tournamentId },
+      const tournament = await ctx.db.tournament.findUnique({
+        where: { id: input.tournamentId },
         include: {
-          top8: {
-            where: { placement: input.placement },
+          participants: {
             include: {
-              user: {
-                select: { id: true, name: true, image: true },
-              },
+              user: true,
               deck: true,
+            },
+          },
+          results: {
+            include: {
+              top8Users: {
+                include: {
+                  user: {
+                    select: { id: true, name: true, image: true },
+                  },
+                },
+              },
+              top8Teams: {
+                include: {
+                  team: true,
+                },
+              },
             },
           },
         },
       });
 
-      if (!result || result.top8.length === 0) {
+      if (!tournament || !tournament.results[0]) {
         throw new TRPCError({
           code: "NOT_FOUND",
-          message: "Top 8 placement not found",
+          message: "Tournament results not found",
         });
       }
 
-      return result.top8[0];
+      const result = tournament.results[0];
+
+      if (tournament.teamSize === 1) {
+        // Individual tournament
+        const top8User = result.top8Users[input.placement - 1];
+
+        if (!top8User) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Placement not found",
+          });
+        }
+
+        const participant = tournament.participants.find(
+          (p) => p.userId === top8User.userId,
+        );
+
+        return {
+          user: top8User.user,
+          deck: participant?.deck || null,
+        };
+      } else {
+        // Team tournament
+        const top8Team = result.top8Teams[input.placement - 1];
+
+        if (!top8Team) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Placement not found",
+          });
+        }
+
+        return {
+          team: top8Team.team,
+        };
+      }
     }),
 
   // Get Swiss tournament results
@@ -335,7 +413,6 @@ function calculateTop8Placements(tournament: any) {
     const placement = placementMap.get(i);
     if (placement) {
       top8Placements.push({
-        placement: i,
         userId: placement.userId,
         deckId: placement.deckId,
       });

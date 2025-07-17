@@ -190,6 +190,8 @@ model Match {
   id          String   @id @default(auto()) @map("_id") @db.ObjectId
   tournamentId String  @db.ObjectId
   round       Int
+  position    Int      @default(1)
+  status      String   @default("SCHEDULED")
   player1Id   String?
   player2Id   String?
   team1Id     String? @db.ObjectId

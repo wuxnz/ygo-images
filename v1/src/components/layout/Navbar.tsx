@@ -10,7 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { NotificationIcon } from "@/components/notifications/NotificationIcon";
-import { ThemeToggle } from "./ThemeToggle";
+// import { ThemeToggle } from "./ThemeToggle";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 
 export function Navbar() {
@@ -73,7 +73,7 @@ export function Navbar() {
       <div className="flex items-center space-x-4">
         {session?.user ? (
           <>
-            <ThemeToggle />
+            {/* <ThemeToggle /> */}
             <NotificationIcon />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -118,7 +118,7 @@ export function Navbar() {
           </>
         ) : (
           <>
-            <ThemeToggle />
+            {/* <ThemeToggle /> */}
             <Button asChild variant="ghost">
               <Link href="/login">Sign In</Link>
             </Button>

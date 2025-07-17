@@ -28,6 +28,7 @@ import { toast } from "sonner";
 const tournamentFormSchema = z.object({
   name: z.string().min(1, "Name is required"),
   size: z.coerce.number().min(2, "Must have at least 2 participants"),
+  teamSize: z.coerce.number().min(1).max(5),
   bracketType: z.string().min(1, "Bracket type is required"),
   rules: z.string().min(1, "Rules are required"),
   prize: z.string().min(1, "Prize is required"),
@@ -53,6 +54,7 @@ export function TournamentForm({
     defaultValues: defaultValues ?? {
       name: "",
       size: 8,
+      teamSize: 1,
       bracketType: "SINGLE_ELIMINATION",
       rules: "",
       prize: "",
@@ -98,6 +100,28 @@ export function TournamentForm({
               <FormLabel>Number of Participants</FormLabel>
               <FormControl>
                 <Input type="number" min={2} {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="teamSize"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Team Size</FormLabel>
+              <FormControl>
+                <select
+                  {...field}
+                  className="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex h-10 w-full rounded-md border px-3 py-2 text-sm file:border-0 file:bg-transparent file:text-sm file:font-medium focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <option value={1}>1v1 (Individual)</option>
+                  <option value={2}>2v2 (Teams of 2)</option>
+                  <option value={3}>3v3 (Teams of 3)</option>
+                  <option value={5}>5v5 (Teams of 5)</option>
+                </select>
               </FormControl>
               <FormMessage />
             </FormItem>

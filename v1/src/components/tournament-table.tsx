@@ -45,6 +45,7 @@ export function TournamentTable({
         <TableRow>
           <TableHead>Name</TableHead>
           <TableHead>Size</TableHead>
+          <TableHead>Team Size</TableHead>
           <TableHead>Bracket Type</TableHead>
           <TableHead>Start Date</TableHead>
           <TableHead>End Date</TableHead>
@@ -63,6 +64,9 @@ export function TournamentTable({
               </Link>
             </TableCell>
             <TableCell>{tournament.size}</TableCell>
+            <TableCell>
+              {tournament.teamSize}v{tournament.teamSize}
+            </TableCell>
             <TableCell>{tournament.bracketType}</TableCell>
             <TableCell>{format(tournament.startDate, "MMM d, yyyy")}</TableCell>
             <TableCell>{format(tournament.endDate, "MMM d, yyyy")}</TableCell>

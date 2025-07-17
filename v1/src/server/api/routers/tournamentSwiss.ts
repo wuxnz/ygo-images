@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
-import { MatchStatus } from "@prisma/client";
 
 export const tournamentSwissRouter = createTRPCRouter({
   generateSwissPairings: protectedProcedure
@@ -83,7 +82,7 @@ export const tournamentSwissRouter = createTRPCRouter({
               player2Id: pairing.player2Id,
               round: currentRound,
               position: i + 1,
-              status: MatchStatus.SCHEDULED,
+              status: "SCHEDULED",
             },
           });
           createdMatches.push(match);
@@ -242,24 +241,24 @@ export const tournamentSwissRouter = createTRPCRouter({
       }
 
       // Create tournament result record
-      const top8Placements = placements.slice(0, 8).map((placement, index) => ({
-        placement: index + 1,
-        userId: placement.participant.id,
-        deckId: tournament.participants.find(
-          (p) => p.userId === placement.participant.id,
-        )?.deckId,
-      }));
-
-      await ctx.db.tournamentResult.create({
+      const result = await ctx.db.tournamentResult.create({
         data: {
           tournamentId: input.tournamentId,
           winnerId: winner.participant.id,
-          totalParticipants: tournament.participants.length,
-          top8: {
-            create: top8Placements,
-          },
         },
       });
+
+      // Create top 8 placements
+      const top8Placements = placements.slice(0, 8).map((placement, index) => ({
+        tournamentResultId: result.id,
+        userId: placement.participant.id,
+      }));
+
+      for (const placement of top8Placements) {
+        await ctx.db.tournamentResultTop8User.create({
+          data: placement,
+        });
+      }
 
       // Mark tournament as completed
       const completedTournament = await ctx.db.tournament.update({
@@ -293,10 +292,7 @@ export const tournamentSwissRouter = createTRPCRouter({
         });
       }
 
-      if (
-        tournament.organizerId !== ctx.session.user.id &&
-        tournament.creatorId !== ctx.session.user.id
-      ) {
+      if (tournament.organizerId !== ctx.session.user.id) {
         throw new TRPCError({
           code: "UNAUTHORIZED",
           message: "Only the organizer can start this tournament",
@@ -334,7 +330,7 @@ export const tournamentSwissRouter = createTRPCRouter({
               player2Id: player2.id,
               round: 1,
               position: Math.floor(i / 2) + 1,
-              status: MatchStatus.SCHEDULED,
+              status: "SCHEDULED",
             },
           });
           matches.push(match);
