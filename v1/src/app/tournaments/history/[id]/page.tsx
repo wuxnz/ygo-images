@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Trophy, Medal, Crown } from "lucide-react";
+import { TournamentTop8DeckModal } from "@/components/tournament/TournamentTop8DeckModal";
 
 export default function TournamentHistoryDetailPage() {
   const params = useParams();
@@ -110,7 +111,7 @@ export default function TournamentHistoryDetailPage() {
           <CardHeader>
             <CardTitle>Tournament Summary</CardTitle>
             <CardDescription>
-              {tournamentResults.totalParticipants} participants • Completed on{" "}
+              {tournamentResults.tournament.size} participants • Completed on{" "}
               {format(new Date(tournamentResults.tournament.endDate), "PPP")}
             </CardDescription>
           </CardHeader>
@@ -140,46 +141,17 @@ export default function TournamentHistoryDetailPage() {
         <Card>
           <CardHeader>
             <CardTitle>Top 8 Results</CardTitle>
-            <CardDescription>Final standings</CardDescription>
+            <CardDescription>Final standings with deck details</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               {tournamentResults.top8.map((placement: any) => (
-                <div
+                <TournamentTop8DeckModal
                   key={placement.id}
-                  className={`flex items-center justify-between rounded-lg border p-4 ${getPlacementColor(
-                    placement.placement,
-                  )}`}
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-2">
-                      {getPlacementIcon(placement.placement)}
-                      <span className="text-lg font-semibold">
-                        #{placement.placement}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <Avatar className="h-8 w-8">
-                        <AvatarImage src={placement.user.image || undefined} />
-                        <AvatarFallback>
-                          {placement.user.name?.charAt(0) || "?"}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <p className="font-medium">{placement.user.name}</p>
-                        {placement.deck && (
-                          <p className="text-muted-foreground text-sm">
-                            {placement.deck.name}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  <Badge variant="outline">
-                    {placement.placement}
-                    {getPlacementSuffix(placement.placement)}
-                  </Badge>
-                </div>
+                  placement={placement.placement}
+                  user={placement.user}
+                  deck={placement.deck}
+                />
               ))}
             </div>
           </CardContent>

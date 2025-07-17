@@ -21,6 +21,12 @@ export default async function DeckPage({ params }: DeckPageProps) {
 
   const { id } = await params;
 
+  // Validate MongoDB ObjectID format
+  const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(id);
+  if (!isValidObjectId) {
+    notFound();
+  }
+
   const deck = await db.deck.findFirst({
     where: {
       id,

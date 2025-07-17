@@ -161,7 +161,42 @@ export const tournamentResultsRouter = createTRPCRouter({
         });
       }
 
-      return result;
+      // Get tournament with participants and their decks
+      const tournament = await ctx.db.tournament.findUnique({
+        where: { id: input.tournamentId },
+        include: {
+          participants: {
+            include: {
+              deck: true,
+              user: true,
+            },
+          },
+        },
+      });
+
+      if (!tournament) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Tournament not found",
+        });
+      }
+
+      // Enhance top8Users with deck information
+      const enhancedTop8Users = result.top8Users.map((top8User, index) => {
+        const participant = tournament.participants.find(
+          (p) => p.userId === top8User.userId,
+        );
+        return {
+          ...top8User,
+          placement: index + 1,
+          deck: participant?.deck || null,
+        };
+      });
+
+      return {
+        ...result,
+        top8: enhancedTop8Users,
+      };
     }),
 
   // Get top 8 deck details for a specific placement

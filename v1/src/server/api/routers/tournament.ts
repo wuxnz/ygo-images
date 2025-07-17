@@ -523,6 +523,25 @@ export const tournamentRouter = createTRPCRouter({
         });
       }
 
+      // Check if team name already exists in this tournament
+      const existingTeamName = await ctx.db.team.findFirst({
+        where: {
+          name: input.name,
+          tournaments: {
+            some: {
+              tournamentId: input.tournamentId,
+            },
+          },
+        },
+      });
+
+      if (existingTeamName) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "A team with this name already exists in this tournament",
+        });
+      }
+
       // Generate unique team code
       const code = Math.random().toString(36).substring(2, 8).toUpperCase();
 
@@ -735,6 +754,303 @@ export const tournamentRouter = createTRPCRouter({
           teamId: input.teamId,
           userId: input.userId,
         },
+      });
+
+      return { success: true };
+    }),
+
+  setTeamDeck: protectedProcedure
+    .input(
+      z.object({
+        tournamentId: z.string(),
+        teamId: z.string(),
+        deckId: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      // Check if user is a member of the team
+      const teamMember = await ctx.db.teamMember.findFirst({
+        where: {
+          teamId: input.teamId,
+          userId: ctx.session.user.id,
+        },
+      });
+
+      if (!teamMember) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "Only team members can select decks",
+        });
+      }
+
+      // Check if team is registered for the tournament
+      const tournamentTeam = await ctx.db.tournamentTeam.findFirst({
+        where: {
+          tournamentId: input.tournamentId,
+          teamId: input.teamId,
+        },
+      });
+
+      if (!tournamentTeam) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Team not found in this tournament",
+        });
+      }
+
+      // Check if tournament has started
+      const tournament = await ctx.db.tournament.findUnique({
+        where: { id: input.tournamentId },
+      });
+
+      if (tournament?.started) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Cannot change decks after tournament has started",
+        });
+      }
+
+      // Check if deck belongs to the user
+      const deck = await ctx.db.deck.findFirst({
+        where: {
+          id: input.deckId,
+          userId: ctx.session.user.id,
+        },
+      });
+
+      if (!deck) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "Deck not found or does not belong to you",
+        });
+      }
+
+      // Get current deck IDs for the team
+      const currentDeckIds = tournamentTeam.deckIds || [];
+
+      // Find the index of this user's deck (if any)
+      const teamMembers = await ctx.db.teamMember.findMany({
+        where: { teamId: input.teamId },
+        orderBy: { id: "asc" },
+      });
+
+      const memberIndex = teamMembers.findIndex(
+        (m) => m.userId === ctx.session.user.id,
+      );
+
+      if (memberIndex === -1) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "User not found in team",
+        });
+      }
+
+      // Update the deck ID at the correct position
+      const newDeckIds = [...currentDeckIds];
+      newDeckIds[memberIndex] = input.deckId;
+
+      return await ctx.db.tournamentTeam.update({
+        where: { id: tournamentTeam.id },
+        data: { deckIds: newDeckIds },
+      });
+    }),
+
+  getTeamDecks: protectedProcedure
+    .input(z.object({ tournamentId: z.string(), teamId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      // Check if user is a member of the team or organizer
+      const teamMember = await ctx.db.teamMember.findFirst({
+        where: {
+          teamId: input.teamId,
+          userId: ctx.session.user.id,
+        },
+      });
+
+      const tournament = await ctx.db.tournament.findUnique({
+        where: { id: input.tournamentId },
+      });
+
+      if (!teamMember && tournament?.organizerId !== ctx.session.user.id) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "Only team members or organizers can view team decks",
+        });
+      }
+
+      const tournamentTeam = await ctx.db.tournamentTeam.findFirst({
+        where: {
+          tournamentId: input.tournamentId,
+          teamId: input.teamId,
+        },
+        include: {
+          team: {
+            include: {
+              members: {
+                include: {
+                  user: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (!tournamentTeam) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Team not found in this tournament",
+        });
+      }
+
+      // Get deck details for each team member
+      const deckIds = tournamentTeam.deckIds || [];
+      const decks = await ctx.db.deck.findMany({
+        where: {
+          id: { in: deckIds.filter(Boolean) },
+        },
+      });
+
+      return tournamentTeam.team.members.map((member, index) => ({
+        userId: member.userId,
+        userName: member.user.name,
+        deckId: deckIds[index] || null,
+        deckName: decks.find((d) => d.id === deckIds[index])?.name || null,
+      }));
+    }),
+
+  leaveTeam: protectedProcedure
+    .input(
+      z.object({
+        teamId: z.string(),
+        tournamentId: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const tournament = await ctx.db.tournament.findUnique({
+        where: { id: input.tournamentId },
+      });
+
+      if (!tournament) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Tournament not found",
+        });
+      }
+
+      if (tournament.started) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Cannot leave team after tournament has started",
+        });
+      }
+
+      // Check if user is a member of the team
+      const teamMember = await ctx.db.teamMember.findFirst({
+        where: {
+          teamId: input.teamId,
+          userId: ctx.session.user.id,
+        },
+      });
+
+      if (!teamMember) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "You are not a member of this team",
+        });
+      }
+
+      // Check if user is the last member (team leader)
+      const teamMembers = await ctx.db.teamMember.findMany({
+        where: { teamId: input.teamId },
+      });
+
+      if (teamMembers.length === 1) {
+        // Last member - delete the team entirely
+        await ctx.db.tournamentTeam.deleteMany({
+          where: {
+            teamId: input.teamId,
+            tournamentId: input.tournamentId,
+          },
+        });
+
+        await ctx.db.teamMember.deleteMany({
+          where: { teamId: input.teamId },
+        });
+
+        await ctx.db.team.delete({
+          where: { id: input.teamId },
+        });
+      } else {
+        // Remove member from team
+        await ctx.db.teamMember.deleteMany({
+          where: {
+            teamId: input.teamId,
+            userId: ctx.session.user.id,
+          },
+        });
+      }
+
+      return { success: true };
+    }),
+
+  deleteTeam: protectedProcedure
+    .input(
+      z.object({
+        teamId: z.string(),
+        tournamentId: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const tournament = await ctx.db.tournament.findUnique({
+        where: { id: input.tournamentId },
+      });
+
+      if (!tournament) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Tournament not found",
+        });
+      }
+
+      if (tournament.started) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Cannot delete team after tournament has started",
+        });
+      }
+
+      // Check if user is team leader
+      const teamMember = await ctx.db.teamMember.findFirst({
+        where: {
+          teamId: input.teamId,
+          userId: ctx.session.user.id,
+          role: "leader",
+        },
+      });
+
+      if (!teamMember) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "Only team leaders can delete teams",
+        });
+      }
+
+      // Remove team from tournament
+      await ctx.db.tournamentTeam.deleteMany({
+        where: {
+          teamId: input.teamId,
+          tournamentId: input.tournamentId,
+        },
+      });
+
+      // Delete all team members
+      await ctx.db.teamMember.deleteMany({
+        where: { teamId: input.teamId },
+      });
+
+      // Delete the team
+      await ctx.db.team.delete({
+        where: { id: input.teamId },
       });
 
       return { success: true };

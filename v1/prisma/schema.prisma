@@ -115,8 +115,8 @@ model Team {
   winnerTeamMatches Match[] @relation("WinnerTeamMatches")
   tournamentResultTop8s TournamentResultTop8Team[] @relation("TeamTop8Results")
   
-  // Ensure team name is unique
-  @@unique([name])
+  // Allow duplicate team names across different tournaments
+  // Team names only need to be unique within each tournament
 }
 
 model TeamMember {

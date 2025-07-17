@@ -21,6 +21,14 @@ export default async function DeckPage({ params }: DeckPageProps) {
 
   const { id, tournamentId } = params;
 
+  // Validate MongoDB ObjectID format for both IDs
+  const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(id);
+  const isValidTournamentId = /^[0-9a-fA-F]{24}$/.test(tournamentId);
+
+  if (!isValidObjectId || !isValidTournamentId) {
+    notFound();
+  }
+
   // Early check for missing deck (ID is 'null')
   if (id === "null" && session.user) {
     return (
@@ -39,23 +47,65 @@ export default async function DeckPage({ params }: DeckPageProps) {
 
   // Fetch both deck and tournament in parallel
 
-  // Fetch both deck and tournament in parallel
-  const [deck, tournament] = await Promise.all([
+  // Fetch deck, tournament, and check team access
+  const [deck, tournament, userTeams] = await Promise.all([
     db.deck.findFirst({
       where: { id },
     }),
     db.tournament.findFirst({
       where: { id: tournamentId },
-      select: { creatorId: true },
+      select: {
+        organizerId: true,
+        id: true,
+      },
+    }),
+    // Check if user is part of any team in this tournament
+    db.tournamentTeam.findMany({
+      where: {
+        tournamentId,
+        team: {
+          members: {
+            some: {
+              userId: session.user.id,
+            },
+          },
+        },
+      },
+      include: {
+        team: {
+          include: {
+            members: true,
+          },
+        },
+      },
     }),
   ]);
 
   // Check access:
   // 1. User owns the deck OR
-  // 2. User is the tournament creator
-  const hasAccess =
-    deck?.userId === session.user.id ||
-    tournament?.creatorId === session.user.id;
+  // 2. User is the tournament organizer OR
+  // 3. User is on the same team as the deck owner
+  let hasAccess = false;
+
+  if (deck && tournament) {
+    const isOwner = deck.userId === session.user.id;
+    const isOrganizer = tournament.organizerId === session.user.id;
+
+    // Check if deck owner and current user are on the same team in this tournament
+    let isTeamMember = false;
+    for (const tournamentTeam of userTeams) {
+      const teamMemberIds = tournamentTeam.team.members.map((m) => m.userId);
+      if (
+        teamMemberIds.includes(deck.userId) &&
+        teamMemberIds.includes(session.user.id)
+      ) {
+        isTeamMember = true;
+        break;
+      }
+    }
+
+    hasAccess = isOwner || isOrganizer || isTeamMember;
+  }
 
   if (!deck || !hasAccess) {
     return (
@@ -72,17 +122,26 @@ export default async function DeckPage({ params }: DeckPageProps) {
       </div>
     );
   }
-  if (!deck || !hasAccess) {
-    notFound();
-  }
 
   // Attempt to fetch and parse the deck file.
   let parsed: ReturnType<typeof parseYdk> | null = null;
   try {
-    const res = await fetch(deck.fileUrl, { cache: "no-store" });
+    // Use a proxy endpoint to avoid CORS issues
+    const proxyUrl = `/api/proxy-deck?url=${encodeURIComponent(deck.fileUrl)}`;
+    const res = await fetch(proxyUrl, { cache: "no-store" });
     if (res.ok) {
       const text = await res.text();
       parsed = parseYdk(text);
+    } else {
+      // Fallback to direct fetch if proxy fails
+      const directRes = await fetch(deck.fileUrl, {
+        cache: "no-store",
+        mode: "cors",
+      });
+      if (directRes.ok) {
+        const text = await directRes.text();
+        parsed = parseYdk(text);
+      }
     }
   } catch {
     // ignore errors, keep parsed null

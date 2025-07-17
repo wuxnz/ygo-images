@@ -5,7 +5,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { api } from "@/trpc/react";
 import { useState } from "react";
-import { Plus, Users, UserPlus, UserMinus, ShieldBan } from "lucide-react";
+import {
+  Plus,
+  Users,
+  UserPlus,
+  UserMinus,
+  ShieldBan,
+  CreditCard,
+  Eye,
+} from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,6 +26,14 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { DeckDetailView } from "@/components/deck/DeckDetailView";
 
 interface TeamTournamentManagerProps {
   tournament: {
@@ -71,6 +87,22 @@ export function TeamTournamentManager({
     userId: string;
     userName: string;
   } | null>(null);
+  const [leaveTeam, setLeaveTeam] = useState<{
+    teamId: string;
+    teamName: string;
+  } | null>(null);
+  const [deleteTeam, setDeleteTeam] = useState<{
+    teamId: string;
+    teamName: string;
+  } | null>(null);
+  const [selectedDecks, setSelectedDecks] = useState<Record<string, string>>(
+    {},
+  );
+  const [viewingDeck, setViewingDeck] = useState<{
+    deckId: string;
+    deckName: string;
+    userName: string;
+  } | null>(null);
 
   const utils = api.useUtils();
 
@@ -110,6 +142,38 @@ export function TeamTournamentManager({
     },
   });
 
+  const userDecks = api.deck.getUserDecks.useQuery();
+  const teamDecks = api.tournament.getTeamDecks.useQuery(
+    {
+      tournamentId: tournament.id,
+      teamId: userTeam?.team.id || "",
+    },
+    { enabled: !!userTeam },
+  );
+  const setTeamDeckMutation = api.tournament.setTeamDeck.useMutation({
+    onSuccess: () => {
+      teamDecks.refetch();
+    },
+  });
+  const deckDetails = api.deck.getDeck.useQuery(
+    { id: viewingDeck?.deckId || "" },
+    { enabled: !!viewingDeck?.deckId },
+  );
+
+  const leaveTeamMutation = api.tournament.leaveTeam.useMutation({
+    onSuccess: () => {
+      onUpdate();
+      setLeaveTeam(null);
+    },
+  });
+
+  const deleteTeamMutation = api.tournament.deleteTeam.useMutation({
+    onSuccess: () => {
+      onUpdate();
+      setDeleteTeam(null);
+    },
+  });
+
   const handleCreateTeam = () => {
     if (newTeamName.trim()) {
       createTeamMutation.mutate({
@@ -146,158 +210,338 @@ export function TeamTournamentManager({
     }
   };
 
-  if (userTeam) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Your Team</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div>
-              <h3 className="text-lg font-semibold">{userTeam.team.name}</h3>
-              <p className="text-muted-foreground text-sm">
-                Team Size: {userTeam.team.members.length} /{" "}
-                {tournament.teamSize}
-              </p>
-            </div>
-            {teamCode && (
-              <div className="bg-muted rounded-lg p-3">
-                <p className="text-sm font-medium">Team Code:</p>
-                <p className="text-2xl font-bold tracking-wider">{teamCode}</p>
-                <p className="text-muted-foreground text-xs">
-                  Share this code with teammates so they can join your team
-                </p>
-              </div>
-            )}
-            <div className="space-y-2">
-              <h4 className="text-sm font-medium">Team Members:</h4>
-              {userTeam.team.members.map((member) => (
-                <div
-                  key={member.id}
-                  className="flex items-center justify-between"
-                >
-                  <div className="flex items-center gap-2">
-                    <Badge
-                      variant={
-                        member.role === "leader" ? "default" : "secondary"
-                      }
-                    >
-                      {member.user.name || "Anonymous"}
-                    </Badge>
-                    {member.role === "leader" && (
-                      <span className="text-muted-foreground text-xs">
-                        (Leader)
-                      </span>
-                    )}
-                  </div>
-                  {member.role !== "leader" &&
-                    isTeamLeader(userTeam.team.members, currentUserId) && (
-                      <div className="flex gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() =>
-                            setKickMember({
-                              teamId: userTeam.team.id,
-                              userId: member.userId,
-                              userName: member.user.name || "Anonymous",
-                            })
-                          }
-                          disabled={kickTeamMemberMutation.isPending}
-                        >
-                          <UserMinus className="h-3 w-3" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() =>
-                            setBanMember({
-                              teamId: userTeam.team.id,
-                              userId: member.userId,
-                              userName: member.user.name || "Anonymous",
-                            })
-                          }
-                          disabled={banTeamMemberMutation.isPending}
-                        >
-                          <ShieldBan className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    )}
-                </div>
-              ))}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
+  const handleDeckSelect = (deckId: string) => {
+    if (userTeam) {
+      setTeamDeckMutation.mutate({
+        tournamentId: tournament.id,
+        teamId: userTeam.team.id,
+        deckId: deckId === "none" ? "" : deckId,
+      });
+    }
+  };
+
+  const handleViewDeck = (
+    deckId: string,
+    deckName: string,
+    userName: string,
+  ) => {
+    setViewingDeck({ deckId, deckName, userName });
+  };
+
+  const handleLeaveTeam = () => {
+    if (leaveTeam) {
+      leaveTeamMutation.mutate({
+        teamId: leaveTeam.teamId,
+        tournamentId: tournament.id,
+      });
+    }
+  };
+
+  const handleDeleteTeam = () => {
+    if (deleteTeam) {
+      deleteTeamMutation.mutate({
+        teamId: deleteTeam.teamId,
+        tournamentId: tournament.id,
+      });
+    }
+  };
 
   return (
     <div className="space-y-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>Team Tournament</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-muted-foreground mb-4 text-sm">
-            This is a team tournament. Create a team or join an existing one to
-            participate.
-          </p>
-          <div className="flex gap-4">
-            <Button
-              onClick={() => setShowCreateTeam(true)}
-              disabled={createTeamMutation.isPending}
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              Create Team
-            </Button>
-            <Button
-              onClick={() => setShowJoinTeam(true)}
-              variant="outline"
-              disabled={joinTeamMutation.isPending}
-            >
-              <UserPlus className="mr-2 h-4 w-4" />
-              Join Team
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Existing Teams */}
-      {tournament.teams.length > 0 && (
+      {/* Your Team Section - Always show if user is in a team */}
+      {userTeam && (
         <Card>
           <CardHeader>
-            <CardTitle>Existing Teams</CardTitle>
+            <CardTitle>Your Team</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
+              <div>
+                <h3 className="text-lg font-semibold">{userTeam.team.name}</h3>
+                <p className="text-muted-foreground text-sm">
+                  Team Size: {userTeam.team.members.length} /{" "}
+                  {tournament.teamSize}
+                </p>
+              </div>
+              {teamCode && (
+                <div className="bg-muted rounded-lg p-3">
+                  <p className="text-sm font-medium">Team Code:</p>
+                  <p className="text-2xl font-bold tracking-wider">
+                    {teamCode}
+                  </p>
+                  <p className="text-muted-foreground text-xs">
+                    Share this code with teammates so they can join your team
+                  </p>
+                </div>
+              )}
+              <div className="space-y-2">
+                <h4 className="text-sm font-medium">Team Members:</h4>
+                {userTeam.team.members.map((member) => {
+                  const memberDeck = teamDecks.data?.find(
+                    (d) => d.userId === member.userId,
+                  );
+                  const isCurrentUser = member.userId === currentUserId;
+
+                  return (
+                    <div
+                      key={member.id}
+                      className="flex items-center justify-between"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Badge
+                          variant={
+                            member.role === "leader" ? "default" : "secondary"
+                          }
+                        >
+                          {member.user.name || "Anonymous"}
+                        </Badge>
+                        {member.role === "leader" && (
+                          <span className="text-muted-foreground text-xs">
+                            (Leader)
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {/* Deck Selection */}
+                        {isCurrentUser && (
+                          <Select
+                            value={memberDeck?.deckId || "none"}
+                            onValueChange={handleDeckSelect}
+                            disabled={setTeamDeckMutation.isPending}
+                          >
+                            <SelectTrigger className="h-8 w-40 text-sm">
+                              <SelectValue placeholder="Select deck">
+                                {memberDeck?.deckName || "Select deck"}
+                              </SelectValue>
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">No deck</SelectItem>
+                              {userDecks.data?.map((deck) => (
+                                <SelectItem key={deck.id} value={deck.id}>
+                                  {deck.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+
+                        {(isCreator || isCurrentUser) &&
+                          memberDeck?.deckName && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() =>
+                                handleViewDeck(
+                                  memberDeck.deckId || "",
+                                  memberDeck.deckName || "Unnamed Deck",
+                                  member.user.name || "Anonymous",
+                                )
+                              }
+                              className="h-8 text-xs"
+                            >
+                              <Eye className="mr-1 h-3 w-3" />
+                              View
+                            </Button>
+                          )}
+
+                        {!isCreator &&
+                          !isCurrentUser &&
+                          memberDeck?.deckName && (
+                            <Badge variant="outline" className="text-xs">
+                              <CreditCard className="mr-1 h-3 w-3" />
+                              {memberDeck.deckName}
+                            </Badge>
+                          )}
+
+                        {/* Management buttons */}
+                        {member.role !== "leader" &&
+                          isTeamLeader(
+                            userTeam.team.members,
+                            currentUserId,
+                          ) && (
+                            <div className="flex gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() =>
+                                  setKickMember({
+                                    teamId: userTeam.team.id,
+                                    userId: member.userId,
+                                    userName: member.user.name || "Anonymous",
+                                  })
+                                }
+                                disabled={kickTeamMemberMutation.isPending}
+                              >
+                                <UserMinus className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() =>
+                                  setBanMember({
+                                    teamId: userTeam.team.id,
+                                    userId: member.userId,
+                                    userName: member.user.name || "Anonymous",
+                                  })
+                                }
+                                disabled={banTeamMemberMutation.isPending}
+                              >
+                                <ShieldBan className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Team Management Actions */}
+              <div className="border-t pt-4">
+                <div className="flex gap-2">
+                  {isTeamLeader(userTeam.team.members, currentUserId) ? (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() =>
+                        setDeleteTeam({
+                          teamId: userTeam.team.id,
+                          teamName: userTeam.team.name,
+                        })
+                      }
+                      disabled={deleteTeamMutation.isPending}
+                    >
+                      Delete Team
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        setLeaveTeam({
+                          teamId: userTeam.team.id,
+                          teamName: userTeam.team.name,
+                        })
+                      }
+                      disabled={leaveTeamMutation.isPending}
+                    >
+                      Leave Team
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Create/Join Team Actions - Only show if user is not in a team */}
+      {!userTeam && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Team Tournament</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-muted-foreground mb-4 text-sm">
+              This is a team tournament. Create a team or join an existing one
+              to participate.
+            </p>
+            <div className="flex gap-4">
+              <Button
+                onClick={() => setShowCreateTeam(true)}
+                disabled={createTeamMutation.isPending}
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Create Team
+              </Button>
+              <Button
+                onClick={() => setShowJoinTeam(true)}
+                variant="outline"
+                disabled={joinTeamMutation.isPending}
+              >
+                <UserPlus className="mr-2 h-4 w-4" />
+                Join Team
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* All Teams - Always show */}
+      {tournament.teams.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>All Teams ({tournament.teams.length})</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
               {tournament.teams.map(({ team }) => (
                 <div key={team.id} className="rounded-lg border p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="font-semibold">{team.name}</h4>
-                      {team.code &&
-                        isTeamMember(team.members, currentUserId) && (
-                          <p className="text-muted-foreground text-sm">
-                            Code: <span className="font-mono">{team.code}</span>
-                          </p>
-                        )}
-                    </div>
-                    <Badge variant="outline">
+                  <div className="mb-3 flex items-center justify-between">
+                    <h4 className="text-lg font-semibold">{team.name}</h4>
+                    <Badge
+                      variant={
+                        team.members.length === tournament.teamSize
+                          ? "default"
+                          : "outline"
+                      }
+                      className={
+                        team.members.length === tournament.teamSize
+                          ? "bg-green-500"
+                          : ""
+                      }
+                    >
                       {team.members.length} / {tournament.teamSize}
                     </Badge>
                   </div>
-                  <div className="mt-2 space-y-1">
-                    {team.members.map((member) => (
-                      <span
-                        key={member.id}
-                        className="text-muted-foreground text-sm"
-                      >
-                        {member.user.name || "Anonymous"}
-                        {member.role === "leader" && " (Leader)"}
-                      </span>
-                    ))}
+
+                  <div className="space-y-2">
+                    <div className="text-sm">
+                      <span className="font-medium">Members:</span>
+                      <div className="mt-1 space-y-2">
+                        {team.members.map((member) => (
+                          <div
+                            key={member.id}
+                            className="flex items-center justify-between"
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="text-muted-foreground">
+                                {member.user.name || "Anonymous"}
+                              </span>
+                              {member.role === "leader" && (
+                                <Badge variant="secondary" className="text-xs">
+                                  Leader
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {team.code && (
+                      <div className="mt-3 border-t pt-3">
+                        {isTeamMember(team.members, currentUserId) ? (
+                          <p className="text-muted-foreground text-sm">
+                            <span className="font-medium">Team Code:</span>{" "}
+                            <span className="font-mono font-bold">
+                              {team.code}
+                            </span>
+                          </p>
+                        ) : team.members.length < tournament.teamSize ? (
+                          <p className="text-muted-foreground text-xs">
+                            This team has{" "}
+                            {tournament.teamSize - team.members.length} open
+                            spot(s)
+                          </p>
+                        ) : (
+                          <p className="text-muted-foreground text-xs">
+                            Team is full
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
@@ -411,6 +655,146 @@ export function TeamTournamentManager({
               disabled={banTeamMemberMutation.isPending}
             >
               {banTeamMemberMutation.isPending ? "Banning..." : "Ban Member"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* View Deck Modal */}
+      <AlertDialog
+        open={!!viewingDeck}
+        onOpenChange={() => setViewingDeck(null)}
+      >
+        <AlertDialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {viewingDeck?.deckName} - {viewingDeck?.userName}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Detailed deck information and card list
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <div className="space-y-4">
+            {deckDetails.isLoading ? (
+              <div className="flex justify-center py-8">
+                <div className="border-primary h-8 w-8 animate-spin rounded-full border-b-2"></div>
+              </div>
+            ) : deckDetails.data ? (
+              <div className="space-y-4">
+                {deckDetails.data.fileUrl ? (
+                  <DeckDetailView
+                    deck={{
+                      id: deckDetails.data.id,
+                      name: deckDetails.data.name,
+                      description:
+                        (deckDetails.data as any).description || null,
+                      fileUrl: deckDetails.data.fileUrl,
+                      fileName:
+                        (deckDetails.data as any).fileName ||
+                        `${deckDetails.data.name}.ydk`,
+                      fileSize: (deckDetails.data as any).fileSize || 0,
+                      uploadedAt:
+                        (deckDetails.data as any).uploadedAt || new Date(),
+                      format: (deckDetails.data as any).format,
+                      powerLevel: (deckDetails.data as any).powerLevel,
+                      commander: (deckDetails.data as any).commander,
+                      deckList: (deckDetails.data as any).deckList,
+                    }}
+                    userName={viewingDeck?.userName || "Unknown User"}
+                  />
+                ) : (
+                  <div className="space-y-4">
+                    {(deckDetails.data as any).commander && (
+                      <div>
+                        <span className="font-semibold">Commander: </span>
+                        <span>{(deckDetails.data as any).commander}</span>
+                      </div>
+                    )}
+
+                    {(deckDetails.data as any).description && (
+                      <div>
+                        <span className="font-semibold">Description: </span>
+                        <span>{(deckDetails.data as any).description}</span>
+                      </div>
+                    )}
+
+                    <div>
+                      <span className="font-semibold">Deck List:</span>
+                      <pre className="bg-muted mt-2 rounded-md p-3 text-sm whitespace-pre-wrap">
+                        {(deckDetails.data as any).deckList ||
+                          "No deck list provided"}
+                      </pre>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <span className="font-semibold">Format: </span>
+                        <span>{(deckDetails.data as any).format}</span>
+                      </div>
+                      <div>
+                        <span className="font-semibold">Power Level: </span>
+                        <span>
+                          {(deckDetails.data as any).powerLevel ||
+                            "Not specified"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-muted-foreground py-8 text-center">
+                No deck details available
+              </p>
+            )}
+          </div>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel>Close</AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Leave Team Dialog */}
+      <AlertDialog open={!!leaveTeam} onOpenChange={() => setLeaveTeam(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Leave Team</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to leave "{leaveTeam?.teamName}"? You can
+              rejoin later with the team code if there are open spots.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleLeaveTeam}
+              disabled={leaveTeamMutation.isPending}
+            >
+              {leaveTeamMutation.isPending ? "Leaving..." : "Leave Team"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Team Dialog */}
+      <AlertDialog open={!!deleteTeam} onOpenChange={() => setDeleteTeam(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Team</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{deleteTeam?.teamName}"? This
+              will remove all team members and cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteTeam}
+              disabled={deleteTeamMutation.isPending}
+            >
+              {deleteTeamMutation.isPending ? "Deleting..." : "Delete Team"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
