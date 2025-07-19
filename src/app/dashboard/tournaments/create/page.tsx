@@ -5,11 +5,17 @@ import { TournamentForm } from "@/components/tournament-form";
 import { api } from "@/trpc/react";
 import { useRouter } from "next/navigation";
 import BackButton from "@/components/ui/back-button";
+import { useNotifications } from "@/lib/notifications/NotificationContext";
 
 export default function CreateTournamentPage() {
   const router = useRouter();
+  const { addNotification } = useNotifications();
   const createMutation = api.tournament.create.useMutation({
-    onSuccess: () => {
+    onSuccess: (tournament) => {
+      addNotification({
+        type: "TOURNAMENT_CREATED",
+        message: `Tournament "${tournament.name}" has been created successfully!`,
+      });
       router.push("/dashboard/tournaments");
     },
   });

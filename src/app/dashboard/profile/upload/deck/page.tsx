@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
+import { useNotifications } from "@/lib/notifications/NotificationContext";
+import type { NotificationType } from "@/types/notifications";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -63,6 +65,7 @@ interface UploadState {
 export default function DeckUploadPage() {
   const { data: session } = useSession();
   const router = useRouter();
+  const { addNotification } = useNotifications();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadState, setUploadState] = useState<UploadState>({
     isUploading: false,
@@ -129,6 +132,11 @@ export default function DeckUploadPage() {
         progress: 100,
         error: null,
         success: true,
+      });
+
+      addNotification({
+        type: "DECK_CREATED" as NotificationType,
+        message: `Deck "${data.name}" has been uploaded successfully!`,
       });
 
       // Reset form

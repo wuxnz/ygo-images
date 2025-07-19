@@ -5,6 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { api } from "@/trpc/react";
 import { useState } from "react";
+import { useNotifications } from "@/lib/notifications/NotificationContext";
+import type { NotificationType } from "@/types/notifications";
 import {
   Plus,
   Users,
@@ -104,6 +106,7 @@ export function TeamTournamentManager({
   );
 
   const utils = api.useUtils();
+  const { addNotification } = useNotifications();
 
   // Check if user is already in a team
   const userTeam = tournament.teams.find((team) =>
@@ -125,6 +128,11 @@ export function TeamTournamentManager({
       setNewTeamName("");
       setTeamCode(data.code);
       setSelectedDeckForCreate("none");
+
+      addNotification({
+        type: "TEAM_CREATED",
+        message: `Team "${data.name}" has been created successfully!`,
+      });
     },
   });
 
@@ -142,6 +150,19 @@ export function TeamTournamentManager({
       setShowJoinTeam(false);
       setJoinCode("");
       setSelectedDeckForJoin("none");
+
+      addNotification({
+        type: "TEAM_JOINED",
+        message: `You have joined team "${teamByCodeQuery.data?.name}"!`,
+      });
+
+      // Notify team leader about new member
+      if (currentUserId && teamByCodeQuery.data?.id) {
+        addNotification({
+          type: "TEAM_MEMBER_ADDED",
+          message: `A new member has joined your team "${teamByCodeQuery.data.name}"!`,
+        });
+      }
     },
   });
 
@@ -149,6 +170,13 @@ export function TeamTournamentManager({
     onSuccess: () => {
       onUpdate();
       setKickMember(null);
+
+      if (kickMember) {
+        addNotification({
+          type: "TEAM_MEMBER_REMOVED",
+          message: `${kickMember.userName} has been removed from your team`,
+        });
+      }
     },
   });
 
@@ -178,6 +206,13 @@ export function TeamTournamentManager({
     onSuccess: () => {
       onUpdate();
       setLeaveTeam(null);
+
+      if (leaveTeam) {
+        addNotification({
+          type: "TEAM_MEMBER_REMOVED",
+          message: `You have left team "${leaveTeam.teamName}"`,
+        });
+      }
     },
   });
 
@@ -185,6 +220,13 @@ export function TeamTournamentManager({
     onSuccess: () => {
       onUpdate();
       setDeleteTeam(null);
+
+      if (deleteTeam) {
+        addNotification({
+          type: "TEAM_DELETED",
+          message: `Team "${deleteTeam.teamName}" has been deleted`,
+        });
+      }
     },
   });
 

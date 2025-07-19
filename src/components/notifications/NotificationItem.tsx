@@ -8,6 +8,8 @@ import { Bell, Trophy, Users, FileText, User, AlertCircle } from "lucide-react";
 interface NotificationItemProps {
   notification: Notification;
   onClick?: () => void;
+  onRead?: (id: string) => void;
+  onDelete?: () => void;
 }
 
 const notificationIcons: Record<

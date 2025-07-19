@@ -9,6 +9,8 @@ import { Bracket } from "@/components/Bracket";
 import { SwissTournamentBracket } from "@/components/tournament/SwissTournamentBracket";
 import { useState } from "react";
 import { Form } from "@/components/ui/form";
+import { useNotifications } from "@/lib/notifications/NotificationContext";
+import type { NotificationType } from "@/types/notifications";
 import {
   Select,
   SelectContent,
@@ -41,6 +43,7 @@ export default function TournamentDetailPage() {
   const id = params.id ?? "";
   const { data: session } = useSession();
   const utils = api.useUtils();
+  const { addNotification } = useNotifications();
   const [bracketError, setBracketError] = useState<string | null>(null);
 
   const { data: tournament, isLoading } = api.tournament.getById.useQuery({
@@ -59,6 +62,12 @@ export default function TournamentDetailPage() {
   const joinMutation = api.tournament.join.useMutation({
     onSuccess: () => {
       utils.tournament.getById.invalidate({ id });
+      if (tournament) {
+        addNotification({
+          type: "TOURNAMENT_JOINED" as NotificationType,
+          message: `You have joined tournament "${tournament.name}"`,
+        });
+      }
     },
   });
 
