@@ -14,7 +14,11 @@ export const tournamentSwissRouter = createTRPCRouter({
               user: true,
             },
           },
-          matches: true,
+          rounds: {
+            include: {
+              matches: true,
+            },
+          },
         },
       });
 
@@ -25,24 +29,24 @@ export const tournamentSwissRouter = createTRPCRouter({
         });
       }
 
-      if (tournament.organizerId !== ctx.session.user.id) {
+      if (tournament.creatorId !== ctx.session.user.id) {
         throw new TRPCError({
           code: "UNAUTHORIZED",
-          message: "Only the organizer can generate pairings",
+          message: "Only the creator can generate pairings",
         });
       }
 
-      if (tournament.bracketType !== "SWISS") {
+      if (tournament.format !== "swiss") {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "This endpoint is only for Swiss tournaments",
         });
       }
 
-      if (!tournament.started) {
+      if (tournament.status !== "active") {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: "Tournament must be started first",
+          message: "Tournament must be active to generate pairings",
         });
       }
 
@@ -54,35 +58,44 @@ export const tournamentSwissRouter = createTRPCRouter({
         name: p.user.name || "Unknown",
       }));
 
-      const matches = tournament.matches.map((m) => ({
-        id: m.id,
-        round: m.round,
-        player1Id: m.player1Id || undefined,
-        player2Id: m.player2Id || undefined,
-        winnerId: m.winnerId || undefined,
-        status: m.status,
-      }));
+      const matches = tournament.rounds
+        .flatMap((r) => r.matches)
+        .map((m) => ({
+          id: m.id,
+          round:
+            tournament.rounds.find((r) => r.id === m.roundId)?.roundNumber || 0,
+          player1Id: m.player1Id || undefined,
+          player2Id: m.player2Id || undefined,
+          winnerId: m.winnerId || undefined,
+          status: m.winnerId ? "COMPLETED" : "SCHEDULED",
+        }));
 
       const currentRound = Math.max(...matches.map((m) => m.round || 0), 0) + 1;
+
       const pairings = generateSwissPairings(
         participants,
         matches,
         currentRound,
       );
 
+      // Create new round
+      const newRound = await ctx.db.tournamentRound.create({
+        data: {
+          tournamentId: input.tournamentId,
+          roundNumber: currentRound,
+        },
+      });
+
       // Create new matches for the next round
       const createdMatches = [];
       for (let i = 0; i < pairings.length; i++) {
         const pairing = pairings[i];
         if (pairing && pairing.player1Id && pairing.player2Id) {
-          const match = await ctx.db.match.create({
+          const match = await ctx.db.tournamentMatch.create({
             data: {
-              tournamentId: input.tournamentId,
+              roundId: newRound.id,
               player1Id: pairing.player1Id,
               player2Id: pairing.player2Id,
-              round: currentRound,
-              position: i + 1,
-              status: "SCHEDULED",
             },
           });
           createdMatches.push(match);
@@ -103,7 +116,11 @@ export const tournamentSwissRouter = createTRPCRouter({
               user: true,
             },
           },
-          matches: true,
+          rounds: {
+            include: {
+              matches: true,
+            },
+          },
         },
       });
 
@@ -114,13 +131,14 @@ export const tournamentSwissRouter = createTRPCRouter({
         });
       }
 
-      if (tournament.bracketType !== "SWISS") {
+      if (tournament.format !== "swiss") {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "This endpoint is only for Swiss tournaments",
         });
       }
 
+      // Import Swiss completion logic
       const { calculateSwissStandings } = await import("@/lib/swissPairing");
 
       const participants = tournament.participants.map((p) => ({
@@ -128,28 +146,21 @@ export const tournamentSwissRouter = createTRPCRouter({
         name: p.user.name || "Unknown",
       }));
 
-      const matches = tournament.matches.map((m) => ({
-        id: m.id,
-        round: m.round,
-        player1Id: m.player1Id || undefined,
-        player2Id: m.player2Id || undefined,
-        winnerId: m.winnerId || undefined,
-        status: m.status,
-      }));
+      const matches = tournament.rounds
+        .flatMap((r) => r.matches)
+        .map((m) => ({
+          id: m.id,
+          round:
+            tournament.rounds.find((r) => r.id === m.roundId)?.roundNumber || 0,
+          player1Id: m.player1Id,
+          player2Id: m.player2Id,
+          winnerId: m.winnerId || undefined,
+          status: m.winnerId ? "COMPLETED" : "SCHEDULED",
+        }));
 
       const standings = calculateSwissStandings(participants, matches);
 
-      return standings.map((standing) => ({
-        participant: {
-          id: standing.participant.id,
-          name: standing.participant.name,
-        },
-        wins: standing.wins,
-        losses: standing.losses,
-        draws: standing.draws,
-        points: standing.points,
-        opponents: standing.opponents,
-      }));
+      return { standings };
     }),
 
   completeSwissTournament: protectedProcedure
@@ -161,10 +172,13 @@ export const tournamentSwissRouter = createTRPCRouter({
           participants: {
             include: {
               user: true,
-              deck: true,
             },
           },
-          matches: true,
+          rounds: {
+            include: {
+              matches: true,
+            },
+          },
         },
       });
 
@@ -175,51 +189,46 @@ export const tournamentSwissRouter = createTRPCRouter({
         });
       }
 
-      if (tournament.organizerId !== ctx.session.user.id) {
+      if (tournament.creatorId !== ctx.session.user.id) {
         throw new TRPCError({
           code: "UNAUTHORIZED",
-          message: "Only the organizer can complete the tournament",
+          message: "Only the creator can complete the tournament",
         });
       }
 
-      if (tournament.bracketType !== "SWISS") {
+      if (tournament.format !== "swiss") {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "This endpoint is only for Swiss tournaments",
         });
       }
 
-      if (!tournament.started) {
+      if (tournament.status !== "active") {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: "Tournament has not started",
-        });
-      }
-
-      if (tournament.completed) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Tournament already completed",
+          message: "Tournament must be active to complete",
         });
       }
 
       // Import Swiss completion logic
-      const { isSwissTournamentComplete, calculateSwissPlacements } =
-        await import("@/lib/swissPairing");
+      const { calculateSwissPlacements } = await import("@/lib/swissPairing");
 
       const participants = tournament.participants.map((p) => ({
         id: p.userId,
         name: p.user.name || "Unknown",
       }));
 
-      const matches = tournament.matches.map((m) => ({
-        id: m.id,
-        round: m.round,
-        player1Id: m.player1Id || undefined,
-        player2Id: m.player2Id || undefined,
-        winnerId: m.winnerId || undefined,
-        status: m.status,
-      }));
+      const matches = tournament.rounds
+        .flatMap((r) => r.matches)
+        .map((m) => ({
+          id: m.id,
+          round:
+            tournament.rounds.find((r) => r.id === m.roundId)?.roundNumber || 0,
+          player1Id: m.player1Id,
+          player2Id: m.player2Id,
+          winnerId: m.winnerId || undefined,
+          status: m.winnerId ? "COMPLETED" : "SCHEDULED",
+        }));
 
       // Check if tournament is complete
       if (!isSwissTournamentComplete(participants, matches)) {
@@ -240,32 +249,30 @@ export const tournamentSwissRouter = createTRPCRouter({
         });
       }
 
-      // Create tournament result record
-      const result = await ctx.db.tournamentResult.create({
-        data: {
-          tournamentId: input.tournamentId,
-          winnerId: winner.participant.id,
-        },
-      });
-
-      // Create top 8 placements
-      const top8Placements = placements.slice(0, 8).map((placement, index) => ({
-        tournamentResultId: result.id,
-        userId: placement.participant.id,
-      }));
-
-      for (const placement of top8Placements) {
-        await ctx.db.tournamentResultTop8User.create({
-          data: placement,
-        });
+      // Create tournament results for all participants
+      for (let i = 0; i < placements.length; i++) {
+        const placement = placements[i];
+        if (placement) {
+          await ctx.db.tournamentResult.create({
+            data: {
+              tournamentId: input.tournamentId,
+              userId: placement.participant.id,
+              placement: i + 1,
+              wins: placement.wins || 0,
+              losses: placement.losses || 0,
+              draws: 0,
+              points: placement.points || 0,
+            },
+          });
+        }
       }
 
-      // Mark tournament as completed
-      const completedTournament = await ctx.db.tournament.update({
+      // Update tournament status
+      await ctx.db.tournament.update({
         where: { id: input.tournamentId },
         data: {
-          completed: true,
-          winnerId: winner.participant.id,
+          status: "completed",
+          endDate: new Date(),
         },
       });
 
@@ -275,7 +282,7 @@ export const tournamentSwissRouter = createTRPCRouter({
   startSwissTournament: protectedProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ input, ctx }) => {
-      // Only the organizer/creator can start the tournament
+      // Only the creator can start the tournament
       const tournament = await ctx.db.tournament.findUnique({
         where: { id: input.id },
         include: {
@@ -292,26 +299,34 @@ export const tournamentSwissRouter = createTRPCRouter({
         });
       }
 
-      if (tournament.organizerId !== ctx.session.user.id) {
+      if (tournament.creatorId !== ctx.session.user.id) {
         throw new TRPCError({
           code: "UNAUTHORIZED",
-          message: "Only the organizer can start this tournament",
+          message: "Only the creator can start this tournament",
         });
       }
 
-      if (tournament.started) {
+      if (tournament.status !== "upcoming") {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: "Tournament already started",
+          message: "Tournament already started or completed",
         });
       }
 
-      if (tournament.bracketType !== "SWISS") {
+      if (tournament.format !== "swiss") {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "This endpoint is only for Swiss tournaments",
         });
       }
+
+      // Create first round
+      const firstRound = await ctx.db.tournamentRound.create({
+        data: {
+          tournamentId: input.id,
+          roundNumber: 1,
+        },
+      });
 
       // Create initial matches for round 1 (random pairings)
       const participants = tournament.participants.map((p) => p.user);
@@ -323,26 +338,34 @@ export const tournamentSwissRouter = createTRPCRouter({
         const player2 = shuffled[i + 1];
 
         if (player1 && player2) {
-          const match = await ctx.db.match.create({
+          const match = await ctx.db.tournamentMatch.create({
             data: {
-              tournamentId: input.id,
+              roundId: firstRound.id,
               player1Id: player1.id,
               player2Id: player2.id,
-              round: 1,
-              position: Math.floor(i / 2) + 1,
-              status: "SCHEDULED",
             },
           });
           matches.push(match);
         }
       }
 
-      // Set tournament as started
+      // Update tournament status
       await ctx.db.tournament.update({
         where: { id: input.id },
-        data: { started: true },
+        data: { status: "active" },
       });
 
       return { success: true, matches };
     }),
 });
+
+// Helper function to check if Swiss tournament is complete
+function isSwissTournamentComplete(
+  participants: any[],
+  matches: any[],
+): boolean {
+  const totalRounds = Math.ceil(Math.log2(participants.length));
+  const completedRounds = Math.max(...matches.map((m) => m.round || 0), 0);
+
+  return completedRounds >= totalRounds;
+}

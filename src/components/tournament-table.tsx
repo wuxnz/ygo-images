@@ -16,7 +16,7 @@ import { api } from "@/trpc/react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
-type Tournament = RouterOutputs["tournament"]["getAll"][number];
+type Tournament = RouterOutputs["tournament"]["getAll"]["items"][number];
 
 export function TournamentTable({
   tournaments,
@@ -44,11 +44,12 @@ export function TournamentTable({
       <TableHeader>
         <TableRow>
           <TableHead>Name</TableHead>
-          <TableHead>Size</TableHead>
-          <TableHead>Team Size</TableHead>
-          <TableHead>Bracket Type</TableHead>
+          <TableHead>Max Players</TableHead>
+          <TableHead>Format</TableHead>
+          <TableHead>Status</TableHead>
           <TableHead>Start Date</TableHead>
           <TableHead>End Date</TableHead>
+          <TableHead>Participants</TableHead>
           <TableHead>Actions</TableHead>
         </TableRow>
       </TableHeader>
@@ -63,13 +64,18 @@ export function TournamentTable({
                 {tournament.name}
               </Link>
             </TableCell>
-            <TableCell>{tournament.size}</TableCell>
-            <TableCell>
-              {tournament.teamSize}v{tournament.teamSize}
+            <TableCell>{tournament.maxPlayers}</TableCell>
+            <TableCell className="capitalize">
+              {tournament.format.replace("_", " ")}
             </TableCell>
-            <TableCell>{tournament.bracketType}</TableCell>
+            <TableCell className="capitalize">{tournament.status}</TableCell>
             <TableCell>{format(tournament.startDate, "MMM d, yyyy")}</TableCell>
-            <TableCell>{format(tournament.endDate, "MMM d, yyyy")}</TableCell>
+            <TableCell>
+              {tournament.endDate
+                ? format(tournament.endDate, "MMM d, yyyy")
+                : "N/A"}
+            </TableCell>
+            <TableCell>{tournament.participantCount}</TableCell>
             <TableCell>
               <Button asChild size="sm" variant="outline">
                 <Link href={`/dashboard/tournaments/${tournament.id}`}>

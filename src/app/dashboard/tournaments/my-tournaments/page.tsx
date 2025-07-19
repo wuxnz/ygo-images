@@ -35,13 +35,13 @@ export default function MyTournamentsPage() {
   const [searchTerm, setSearchTerm] = useState("");
 
   // Fetch all tournaments and filter client-side
-  const { data: tournaments, isLoading } = api.tournament.getAll.useQuery();
+  const { data: tournaments, isLoading } = api.tournament.getAll.useQuery({});
 
   // Filter tournaments based on user involvement
-  const myTournaments = tournaments?.filter((tournament) => {
-    const isCreator = tournament.organizerId === session?.user?.id;
+  const myTournaments = tournaments?.items.filter((tournament) => {
+    const isCreator = tournament.creatorId === session?.user?.id;
     const isParticipant = tournament.participants.some(
-      (p) => p.userId === session?.user?.id,
+      (p: any) => p.userId === session?.user?.id,
     );
     return isCreator || isParticipant;
   });
@@ -51,25 +51,24 @@ export default function MyTournamentsPage() {
   );
 
   const createdTournaments =
-    filteredTournaments?.filter((t) => t.organizerId === session?.user?.id) ||
-    [];
+    filteredTournaments?.filter((t) => t.creatorId === session?.user?.id) || [];
   const participatingTournaments =
     filteredTournaments?.filter((t) =>
-      t.participants.some((p) => p.userId === session?.user?.id),
+      t.participants.some((p: any) => p.userId === session?.user?.id),
     ) || [];
 
   const getStatusBadge = (tournament: any) => {
-    if (tournament.completed) {
+    if (tournament.status === "completed") {
       return <Badge variant="outline">Completed</Badge>;
     }
-    if (tournament.started) {
+    if (tournament.status === "active") {
       return <Badge variant="default">Active</Badge>;
     }
     return <Badge variant="secondary">Registration</Badge>;
   };
 
   const TournamentCard = ({ tournament }: { tournament: any }) => {
-    const isCreator = tournament.organizerId === session?.user?.id;
+    const isCreator = tournament.creatorId === session?.user?.id;
 
     return (
       <Card className="flex flex-col">
@@ -103,7 +102,7 @@ export default function MyTournamentsPage() {
 
             <div className="text-muted-foreground flex items-center text-sm">
               <Clock className="mr-2 h-4 w-4" />
-              {tournament.bracketType}
+              {tournament.format}
             </div>
 
             <div className="pt-2">{getStatusBadge(tournament)}</div>

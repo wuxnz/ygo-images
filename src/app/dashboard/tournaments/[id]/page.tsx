@@ -6,6 +6,7 @@ import { api } from "@/trpc/react";
 import { useSession } from "next-auth/react";
 import { useParams, useRouter } from "next/navigation";
 import { Bracket } from "@/components/Bracket";
+import { SwissTournamentBracket } from "@/components/tournament/SwissTournamentBracket";
 import { useState } from "react";
 import { Form } from "@/components/ui/form";
 import {
@@ -32,6 +33,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import BackButton from "@/components/ui/back-button";
 
 export default function TournamentDetailPage() {
   const router = useRouter();
@@ -45,11 +47,12 @@ export default function TournamentDetailPage() {
     id,
   });
 
-  const setDeck = api.tournament.setDeck.useMutation({
-    onSuccess: () => {
-      utils.tournament.getById.invalidate({ id });
-    },
-  });
+  const updateParticipantDeck =
+    api.tournament.updateParticipantDeck.useMutation({
+      onSuccess: () => {
+        utils.tournament.getById.invalidate({ id });
+      },
+    });
 
   const getDecks = api.deck.getUserDecks.useQuery();
 
@@ -75,16 +78,17 @@ export default function TournamentDetailPage() {
     refetch: refetchMatches,
   } = api.match.getByTournament.useQuery(
     { tournamentId: id },
-    { enabled: !!tournament && tournament.started === true },
+    { enabled: !!tournament && tournament.status === "active" },
   );
 
-  const startMutation = api.tournament.start.useMutation({
+  const startMutation = api.tournamentSwiss.startSwissTournament.useMutation({
     onSuccess: () => {
       utils.tournament.getById.invalidate({ id });
       refetchMatches();
       setBracketError(null);
     },
-    onError: (err) => setBracketError(err.message),
+    onError: (err) =>
+      setBracketError(err instanceof Error ? err.message : String(err)),
   });
 
   const advanceWinnerMutation = api.match.update.useMutation({
@@ -92,7 +96,8 @@ export default function TournamentDetailPage() {
       refetchMatches();
       setBracketError(null);
     },
-    onError: (err) => setBracketError(err.message),
+    onError: (err) =>
+      setBracketError(err instanceof Error ? err.message : String(err)),
   });
 
   const advanceAllWinnersMutation = api.match.advanceAllWinners.useMutation({
@@ -100,7 +105,8 @@ export default function TournamentDetailPage() {
       refetchMatches();
       setBracketError(null);
     },
-    onError: (err) => setBracketError(err.message),
+    onError: (err) =>
+      setBracketError(err instanceof Error ? err.message : String(err)),
   });
 
   const reshuffleBracketMutation = api.match.reshuffleBracket.useMutation({
@@ -108,7 +114,8 @@ export default function TournamentDetailPage() {
       refetchMatches();
       setBracketError(null);
     },
-    onError: (err) => setBracketError(err.message),
+    onError: (err) =>
+      setBracketError(err instanceof Error ? err.message : String(err)),
   });
 
   const resetMatchMutation = api.match.resetMatch.useMutation({
@@ -116,7 +123,8 @@ export default function TournamentDetailPage() {
       refetchMatches();
       setBracketError(null);
     },
-    onError: (err) => setBracketError(err.message),
+    onError: (err) =>
+      setBracketError(err instanceof Error ? err.message : String(err)),
   });
 
   const resetRoundMutation = api.match.resetRound.useMutation({
@@ -124,15 +132,18 @@ export default function TournamentDetailPage() {
       refetchMatches();
       setBracketError(null);
     },
-    onError: (err) => setBracketError(err.message),
+    onError: (err) =>
+      setBracketError(err instanceof Error ? err.message : String(err)),
   });
 
-  const completeTournamentMutation = api.tournament.complete.useMutation({
-    onSuccess: () => {
-      router.push("/dashboard/tournaments");
-    },
-    onError: (err) => setBracketError(err.message),
-  });
+  const completeTournamentMutation =
+    api.tournamentSwiss.completeSwissTournament.useMutation({
+      onSuccess: () => {
+        router.push("/dashboard/tournaments");
+      },
+      onError: (err) =>
+        setBracketError(err instanceof Error ? err.message : String(err)),
+    });
 
   const handleDelete = () => {
     setDeleteDialogOpen(true);
@@ -157,7 +168,7 @@ export default function TournamentDetailPage() {
     resolver: zodResolver(deckSchema),
   });
 
-  const isCreator = tournament?.organizerId === session?.user?.id;
+  const isCreator = tournament?.creatorId === session?.user?.id;
   const [isParticipant, setIsParticipant] = useState(
     tournament?.participants.some(
       (participant) => participant.userId === session?.user?.id,
@@ -194,9 +205,7 @@ export default function TournamentDetailPage() {
     <div className="container mx-auto flex flex-col gap-4 py-8">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">{tournament.name}</h1>
-        <Button variant="outline" onClick={() => router.back()}>
-          Go Back
-        </Button>
+        <BackButton />
       </div>
 
       <Card className="border">
@@ -205,75 +214,33 @@ export default function TournamentDetailPage() {
         </CardHeader>
         <CardContent>
           <p>
-            <strong>Size:</strong> {tournament.size} participants
+            <strong>Size:</strong> {tournament.maxPlayers} participants
           </p>
           <p>
-            <strong>Team Size:</strong> {tournament.teamSize}v
-            {tournament.teamSize}
+            <strong>Format:</strong> {tournament.format}
           </p>
           <p>
-            <strong>Bracket Type:</strong> {tournament.bracketType}
-          </p>
-          <p>
-            <strong>Rules:</strong> {tournament.rules}
-          </p>
-          <p>
-            <strong>Prize:</strong> {tournament.prize}
+            <strong>Description:</strong>{" "}
+            {tournament.description || "No description provided"}
           </p>
           <p>
             <strong>Start Date:</strong>{" "}
             {tournament.startDate.toLocaleDateString()}
           </p>
           <p>
-            <strong>End Date:</strong> {tournament.endDate.toLocaleDateString()}
+            <strong>End Date:</strong>{" "}
+            {tournament.endDate
+              ? tournament.endDate.toLocaleDateString()
+              : "Not set"}
           </p>
         </CardContent>
       </Card>
-
-      {tournament.teamSize > 1 ? (
-        <TeamTournamentManager
-          tournament={tournament}
-          isCreator={isCreator}
-          currentUserId={session?.user?.id}
-          onUpdate={() => {
-            utils.tournament.getById.invalidate({ id });
-          }}
-        />
-      ) : (
-        <Card className="border">
-          <CardHeader>
-            <CardTitle className="text-lg">Participants</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {tournament.participants?.length > 0 ? (
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {tournament.participants.map((participant) => (
-                  <TournamentParticipantCard
-                    key={participant.id}
-                    participant={participant}
-                    isCreator={isCreator}
-                    currentUserId={session?.user?.id}
-                    onKickSuccess={() => {
-                      utils.tournament.getById.invalidate({ id });
-                    }}
-                    onBanSuccess={() => {
-                      utils.tournament.getById.invalidate({ id });
-                    }}
-                  />
-                ))}
-              </div>
-            ) : (
-              <p>No participants yet</p>
-            )}
-          </CardContent>
-        </Card>
-      )}
 
       <div className="flex gap-2">
         {isCreator && (
           <>
             {/* Start Tournament Button */}
-            {!tournament.started &&
+            {tournament.status === "upcoming" &&
               (tournament.participants?.length ?? 0) >= 2 && (
                 <Button
                   onClick={() => startMutation.mutate({ id })}
@@ -300,7 +267,8 @@ export default function TournamentDetailPage() {
             </Button>
           </>
         )}
-        {!isCreator && !isParticipant && tournament.teamSize === 1 && (
+        {/* Individual tournament join button */}
+        {!isCreator && !isParticipant && (tournament.teamSize ?? 1) <= 1 && (
           <Button
             onClick={handleJoin}
             disabled={joinMutation.isPending}
@@ -309,7 +277,7 @@ export default function TournamentDetailPage() {
             {joinMutation.isPending ? "Joining..." : "Join Tournament"}
           </Button>
         )}
-        {!isCreator && isParticipant && (
+        {!isCreator && isParticipant && (tournament.teamSize ?? 1) <= 1 && (
           <div className="space-y-4">
             <Button variant="secondary" disabled>
               Already Joined
@@ -318,7 +286,10 @@ export default function TournamentDetailPage() {
             <Form {...form}>
               <form
                 onSubmit={form.handleSubmit((data) =>
-                  setDeck.mutate({ tournamentId: id, deckId: data.deckId }),
+                  updateParticipantDeck.mutate({
+                    tournamentId: id,
+                    deckId: data.deckId,
+                  }),
                 )}
                 className="space-y-4"
               >
@@ -341,7 +312,10 @@ export default function TournamentDetailPage() {
                     ))}
                   </SelectContent>
                 </Select>
-                <Button type="submit" disabled={setDeck.isPending}>
+                <Button
+                  type="submit"
+                  disabled={updateParticipantDeck.isPending}
+                >
                   Save Deck Choice
                 </Button>
               </form>
@@ -350,8 +324,20 @@ export default function TournamentDetailPage() {
         )}
       </div>
 
+      {/* Team Tournament Manager - Show for team formats (teamSize > 1) */}
+      {(tournament.teamSize ?? 1) > 1 && (
+        <TeamTournamentManager
+          tournament={tournament as any}
+          isCreator={isCreator}
+          currentUserId={session?.user?.id}
+          onUpdate={() => {
+            utils.tournament.getById.invalidate({ id });
+          }}
+        />
+      )}
+
       {/* Bracket Section */}
-      {tournament.started && (
+      {tournament.status === "active" && (
         <div className="mt-8">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-xl font-bold">Bracket</h2>
@@ -381,7 +367,7 @@ export default function TournamentDetailPage() {
                 </Button>
                 {matches &&
                   matches.length > 0 &&
-                  matches.every((m) => m.status === "COMPLETED") && (
+                  matches.every((m: any) => m.status === "COMPLETED") && (
                     <Button
                       variant="default"
                       size="sm"
@@ -397,60 +383,100 @@ export default function TournamentDetailPage() {
             )}
           </div>
           <div className="mb-2 text-sm text-gray-500">
-            Tournament Started: {tournament.started ? "Yes" : "No"} | Matches
-            Loading: {matchesLoading ? "Yes" : "No"} | Matches Count:{" "}
+            Tournament Status: {tournament.status} | Matches Loading:{" "}
+            {matchesLoading ? "Yes" : "No"} | Matches Count:{" "}
             {matches?.length || 0}
           </div>
           {matchesLoading ? (
             <div>Loading bracket...</div>
           ) : matches && matches.length > 0 ? (
-            <Bracket
-              matches={matches.map((m) => ({
-                id: m.id,
-                round: m.round,
-                position: m.position,
-                player1Id: m.player1Id ?? undefined,
-                player2Id: m.player2Id ?? undefined,
-                winnerId: m.winnerId ?? undefined,
-                status: m.status as string,
-                player1: m.player1
-                  ? { id: m.player1.id, name: m.player1.name || "Unknown" }
-                  : undefined,
-                player2: m.player2
-                  ? { id: m.player2.id, name: m.player2.name || "Unknown" }
-                  : undefined,
-              }))}
-              participants={
-                tournament.participants?.map((p) => ({
-                  id: p.user.id,
-                  name: p.user.name || "Unknown",
-                })) ?? []
-              }
-              bracketType={tournament.bracketType}
-              isCreator={isCreator}
-              onAdvanceWinner={(matchId, winnerId) => {
-                advanceWinnerMutation.mutate({
-                  id: matchId,
-                  winnerId,
-                  status: "COMPLETED",
-                });
-              }}
-              onResetMatch={(matchId) => {
-                resetMatchMutation.mutate({ matchId });
-              }}
-              onResetRound={(round) => {
-                resetRoundMutation.mutate({ tournamentId: id, round });
-              }}
-              onCompleteTournament={() => {
-                completeTournamentMutation.mutate({ id });
-              }}
-            />
+            tournament.format === "SWISS" ? (
+              <SwissTournamentBracket
+                tournamentId={tournament.id}
+                matches={matches.map((m: any) => ({
+                  id: m.id,
+                  round: m.round,
+                  position: m.position,
+                  player1Id: m.player1Id ?? undefined,
+                  player2Id: m.player2Id ?? undefined,
+                  winnerId: m.winnerId ?? undefined,
+                  status: m.status as string,
+                  player1: m.player1
+                    ? { id: m.player1.id, name: m.player1.name || "Unknown" }
+                    : undefined,
+                  player2: m.player2
+                    ? { id: m.player2.id, name: m.player2.name || "Unknown" }
+                    : undefined,
+                }))}
+                participants={
+                  tournament.participants?.map((p) => ({
+                    id: p.user.id,
+                    name: p.user.name || "Unknown",
+                  })) ?? []
+                }
+                isCreator={isCreator}
+                onAdvanceWinner={(matchId: string, winnerId: string) => {
+                  advanceWinnerMutation.mutate({
+                    id: matchId,
+                    winnerId,
+                    status: "COMPLETED",
+                  });
+                }}
+                onResetMatch={(matchId: string) => {
+                  resetMatchMutation.mutate({ matchId });
+                }}
+                onCompleteTournament={() => {
+                  completeTournamentMutation.mutate({ tournamentId: id });
+                }}
+              />
+            ) : (
+              <Bracket
+                matches={matches.map((m: any) => ({
+                  id: m.id,
+                  round: m.round,
+                  position: m.position,
+                  player1Id: m.player1Id ?? undefined,
+                  player2Id: m.player2Id ?? undefined,
+                  winnerId: m.winnerId ?? undefined,
+                  status: m.status as string,
+                  player1: m.player1
+                    ? { id: m.player1.id, name: m.player1.name || "Unknown" }
+                    : undefined,
+                  player2: m.player2
+                    ? { id: m.player2.id, name: m.player2.name || "Unknown" }
+                    : undefined,
+                }))}
+                participants={
+                  tournament.participants?.map((p) => ({
+                    id: p.user.id,
+                    name: p.user.name || "Unknown",
+                  })) ?? []
+                }
+                bracketType={tournament.format}
+                isCreator={isCreator}
+                onAdvanceWinner={(matchId: string, winnerId: string) => {
+                  advanceWinnerMutation.mutate({
+                    id: matchId,
+                    winnerId,
+                    status: "COMPLETED",
+                  });
+                }}
+                onResetMatch={(matchId: string) => {
+                  resetMatchMutation.mutate({ matchId });
+                }}
+                onResetRound={(round: number) => {
+                  resetRoundMutation.mutate({ tournamentId: id, round });
+                }}
+                onCompleteTournament={() => {
+                  completeTournamentMutation.mutate({ tournamentId: id });
+                }}
+              />
+            )
           ) : (
             <div>
               No matches found.
               <div className="mt-1 text-sm text-gray-500">
-                Debug: Tournament ID: {id}, Started:{" "}
-                {tournament.started ? "true" : "false"}
+                Debug: Tournament ID: {id}, Status: {tournament.status}
               </div>
             </div>
           )}
@@ -526,7 +552,7 @@ export default function TournamentDetailPage() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
-                completeTournamentMutation.mutate({ id });
+                completeTournamentMutation.mutate({ tournamentId: id });
                 setCompleteDialogOpen(false);
               }}
             >

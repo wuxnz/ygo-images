@@ -1,13 +1,12 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
-// MatchStatus enum is not needed - using string literals
 
 export const tournamentRoundRobinRouter = createTRPCRouter({
   startRoundRobinTournament: protectedProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ input, ctx }) => {
-      // Only the organizer/creator can start the tournament
+      // Only the creator can start the tournament
       const tournament = await ctx.db.tournament.findUnique({
         where: { id: input.id },
         include: {
@@ -24,21 +23,21 @@ export const tournamentRoundRobinRouter = createTRPCRouter({
         });
       }
 
-      if (tournament.organizerId !== ctx.session.user.id) {
+      if (tournament.creatorId !== ctx.session.user.id) {
         throw new TRPCError({
           code: "UNAUTHORIZED",
-          message: "Only the organizer can start this tournament",
+          message: "Only the creator can start this tournament",
         });
       }
 
-      if (tournament.started) {
+      if (tournament.status !== "scheduled") {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "Tournament already started",
         });
       }
 
-      if (tournament.bracketType !== "ROUND_ROBIN") {
+      if (tournament.format !== "round_robin") {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "This endpoint is only for Round Robin tournaments",
@@ -57,42 +56,48 @@ export const tournamentRoundRobinRouter = createTRPCRouter({
 
       const pairings = generateRoundRobinPairings(participants);
 
-      // Create all matches for the tournament
-      const createdMatches = [];
+      // Create all rounds and matches for the tournament
+      const roundsMap = new Map<number, string>();
+
       for (let i = 0; i < pairings.length; i++) {
         const pairing = pairings[i];
         if (pairing && pairing.player1Id && pairing.player2Id) {
-          const match = await ctx.db.match.create({
+          // Create round if it doesn't exist
+          if (!roundsMap.has(pairing.round)) {
+            const round = await ctx.db.tournamentRound.create({
+              data: {
+                tournamentId: input.id,
+                roundNumber: pairing.round,
+              },
+            });
+            roundsMap.set(pairing.round, round.id);
+          }
+
+          const roundId = roundsMap.get(pairing.round)!;
+
+          await ctx.db.tournamentMatch.create({
             data: {
-              tournamentId: input.id,
+              roundId,
               player1Id: pairing.player1Id,
               player2Id: pairing.player2Id,
-              round: pairing.round,
-              position: i + 1,
-              status: "SCHEDULED",
             },
           });
-          createdMatches.push(match);
         }
       }
 
-      // Set tournament as started
+      // Update tournament status
       await ctx.db.tournament.update({
         where: { id: input.id },
         data: {
-          started: true,
+          status: "in_progress",
         },
       });
 
       return {
         success: true,
-        matches: createdMatches,
         totalRounds: Math.max(...pairings.map((p) => p.round)),
       };
     }),
-
-  // Removed duplicate getRoundRobinStandings procedure
-  // Standings calculation is handled client-side in RoundRobinBracket component
 
   completeRoundRobinTournament: protectedProcedure
     .input(z.object({ tournamentId: z.string() }))
@@ -106,7 +111,11 @@ export const tournamentRoundRobinRouter = createTRPCRouter({
               deck: true,
             },
           },
-          matches: true,
+          rounds: {
+            include: {
+              matches: true,
+            },
+          },
         },
       });
 
@@ -117,31 +126,24 @@ export const tournamentRoundRobinRouter = createTRPCRouter({
         });
       }
 
-      if (tournament.organizerId !== ctx.session.user.id) {
+      if (tournament.creatorId !== ctx.session.user.id) {
         throw new TRPCError({
           code: "UNAUTHORIZED",
-          message: "Only the organizer can complete the tournament",
+          message: "Only the creator can complete the tournament",
         });
       }
 
-      if (tournament.bracketType !== "ROUND_ROBIN") {
+      if (tournament.format !== "round_robin") {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "This endpoint is only for Round Robin tournaments",
         });
       }
 
-      if (!tournament.started) {
+      if (tournament.status !== "in_progress") {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: "Tournament has not started",
-        });
-      }
-
-      if (tournament.completed) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Tournament already completed",
+          message: "Tournament is not in progress",
         });
       }
 
@@ -154,13 +156,15 @@ export const tournamentRoundRobinRouter = createTRPCRouter({
         name: p.user.name || "Unknown",
       }));
 
-      const matches = tournament.matches.map((m) => ({
+      const allMatches = tournament.rounds.flatMap((r) => r.matches);
+      const matches = allMatches.map((m) => ({
         id: m.id,
-        round: m.round,
+        round:
+          tournament.rounds.find((r) => r.id === m.roundId)?.roundNumber || 0,
         player1Id: m.player1Id || undefined,
         player2Id: m.player2Id || undefined,
         winnerId: m.winnerId || undefined,
-        status: m.status,
+        status: m.winnerId ? "COMPLETED" : "SCHEDULED",
       }));
 
       // Check if tournament is complete
@@ -182,32 +186,27 @@ export const tournamentRoundRobinRouter = createTRPCRouter({
         });
       }
 
-      // Create tournament result record
-      const result = await ctx.db.tournamentResult.create({
-        data: {
-          tournamentId: input.tournamentId,
-          winnerId: winner.participant.id,
-        },
-      });
-
-      // Create top 8 placements
-      const top8Placements = placements.slice(0, 8).map((placement) => ({
-        tournamentResultId: result.id,
+      // Create tournament result records for top 8 placements
+      const top8Placements = placements.slice(0, 8).map((placement, index) => ({
+        tournamentId: input.tournamentId,
         userId: placement.participant.id,
+        placement: index + 1,
+        points: placement.points,
+        wins: placement.wins,
+        losses: placement.losses,
       }));
 
       for (const placement of top8Placements) {
-        await ctx.db.tournamentResultTop8User.create({
+        await ctx.db.tournamentResult.create({
           data: placement,
         });
       }
 
       // Mark tournament as completed
-      const completedTournament = await ctx.db.tournament.update({
+      await ctx.db.tournament.update({
         where: { id: input.tournamentId },
         data: {
-          completed: true,
-          winnerId: winner.participant.id,
+          status: "completed",
         },
       });
 
@@ -220,12 +219,16 @@ export const tournamentRoundRobinRouter = createTRPCRouter({
       const tournament = await ctx.db.tournament.findUnique({
         where: { id: input.tournamentId },
         include: {
-          matches: {
-            where: { round: input.round },
+          rounds: {
+            where: { roundNumber: input.round },
             include: {
-              player1: true,
-              player2: true,
-              winner: true,
+              matches: {
+                include: {
+                  player1: true,
+                  player2: true,
+                  winner: true,
+                },
+              },
             },
           },
         },
@@ -238,15 +241,20 @@ export const tournamentRoundRobinRouter = createTRPCRouter({
         });
       }
 
-      return tournament.matches.map((match) => ({
+      const round = tournament.rounds[0];
+      if (!round) {
+        return [];
+      }
+
+      return round.matches.map((match) => ({
         id: match.id,
-        round: match.round,
+        round: input.round,
         player1Id: match.player1Id || "",
         player2Id: match.player2Id || "",
         player1: { name: match.player1?.name || "Unknown" },
         player2: { name: match.player2?.name || "Unknown" },
         winnerId: match.winnerId,
-        status: match.status,
+        status: match.winnerId ? "COMPLETED" : "SCHEDULED",
       }));
     }),
 });

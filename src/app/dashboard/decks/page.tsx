@@ -73,7 +73,7 @@ export default function DeckManagementPage() {
             </p>
           </div>
           <Button asChild>
-            <Link href="/dashboard/decks/create">
+            <Link href="/dashboard/profile/upload/deck">
               <Plus className="mr-2 h-4 w-4" />
               Create New Deck
             </Link>
@@ -134,7 +134,7 @@ export default function DeckManagementPage() {
                       : "Create your first deck to get started with tournaments."}
                   </p>
                   <Button asChild>
-                    <Link href="/dashboard/decks/create">
+                    <Link href="/dashboard/profile/upload/deck">
                       <Plus className="mr-2 h-4 w-4" />
                       Create Deck
                     </Link>

@@ -116,8 +116,8 @@ export function generateRoundRobinPairings(
       // Skip dummy player matches
       if (player1 !== "dummy" && player2 !== "dummy") {
         pairings.push({
-          player1Id: player1,
-          player2Id: player2,
+          player1Id: player1!,
+          player2Id: player2!,
           round: round + 1,
         });
       }

@@ -32,7 +32,8 @@ export function DeckSelectionForm({
   userId: string;
 }) {
   const { data: decks } = api.deck.getUserDecks.useQuery();
-  const setDeck = api.tournament.setDeck.useMutation();
+  const updateParticipantDeck =
+    api.tournament.updateParticipantDeck.useMutation();
 
   const form = useForm<z.infer<typeof deckSchema>>({
     resolver: zodResolver(deckSchema),
@@ -42,7 +43,7 @@ export function DeckSelectionForm({
     <Form {...form}>
       <form
         onSubmit={form.handleSubmit((data) =>
-          setDeck.mutate({ tournamentId, deckId: data.deckId }),
+          updateParticipantDeck.mutate({ tournamentId, deckId: data.deckId }),
         )}
         className="space-y-4"
       >
@@ -69,7 +70,7 @@ export function DeckSelectionForm({
             </FormItem>
           )}
         />
-        <Button type="submit" disabled={setDeck.isPending}>
+        <Button type="submit" disabled={updateParticipantDeck.isPending}>
           Save Deck Choice
         </Button>
       </form>

@@ -112,18 +112,36 @@ export function TeamTournamentManager({
 
   const createTeamMutation = api.tournament.createTeam.useMutation({
     onSuccess: (data) => {
+      // After team creation, update member deck if selected
+      if (selectedDeckForCreate !== "none") {
+        updateTeamMemberDeckMutation.mutate({
+          tournamentId: tournament.id,
+          teamId: data.id,
+          deckId: selectedDeckForCreate,
+        });
+      }
       onUpdate();
       setShowCreateTeam(false);
       setNewTeamName("");
       setTeamCode(data.code);
+      setSelectedDeckForCreate("none");
     },
   });
 
   const joinTeamMutation = api.tournament.joinTeam.useMutation({
     onSuccess: () => {
+      // After joining team, update member deck if selected
+      if (selectedDeckForJoin !== "none" && teamByCodeQuery.data?.id) {
+        updateTeamMemberDeckMutation.mutate({
+          tournamentId: tournament.id,
+          teamId: teamByCodeQuery.data.id,
+          deckId: selectedDeckForJoin,
+        });
+      }
       onUpdate();
       setShowJoinTeam(false);
       setJoinCode("");
+      setSelectedDeckForJoin("none");
     },
   });
 
@@ -149,11 +167,12 @@ export function TeamTournamentManager({
     },
     { enabled: !!userTeam },
   );
-  const setTeamDeckMutation = api.tournament.setTeamDeck.useMutation({
-    onSuccess: () => {
-      teamDecks.refetch();
-    },
-  });
+  const updateTeamMemberDeckMutation =
+    api.tournament.updateTeamMemberDeck.useMutation({
+      onSuccess: () => {
+        teamDecks.refetch();
+      },
+    });
 
   const leaveTeamMutation = api.tournament.leaveTeam.useMutation({
     onSuccess: () => {
@@ -172,7 +191,6 @@ export function TeamTournamentManager({
   const teamByCodeQuery = api.tournament.getTeamByCode.useQuery(
     {
       code: joinCode,
-      tournamentId: tournament.id,
     },
     { enabled: !!joinCode.trim() },
   );
@@ -182,8 +200,6 @@ export function TeamTournamentManager({
       createTeamMutation.mutate({
         name: newTeamName,
         tournamentId: tournament.id,
-        deckId:
-          selectedDeckForCreate !== "none" ? selectedDeckForCreate : undefined,
       });
     }
   };
@@ -191,10 +207,8 @@ export function TeamTournamentManager({
   const handleJoinTeam = () => {
     if (joinCode.trim()) {
       joinTeamMutation.mutate({
-        code: joinCode,
+        teamCode: joinCode,
         tournamentId: tournament.id,
-        deckId:
-          selectedDeckForJoin !== "none" ? selectedDeckForJoin : undefined,
       });
     }
   };
@@ -202,6 +216,7 @@ export function TeamTournamentManager({
   const handleKickMember = () => {
     if (kickMember) {
       kickTeamMemberMutation.mutate({
+        tournamentId: tournament.id,
         teamId: kickMember.teamId,
         userId: kickMember.userId,
       });
@@ -211,6 +226,7 @@ export function TeamTournamentManager({
   const handleBanMember = () => {
     if (banMember) {
       banTeamMemberMutation.mutate({
+        tournamentId: tournament.id,
         teamId: banMember.teamId,
         userId: banMember.userId,
       });
@@ -219,7 +235,7 @@ export function TeamTournamentManager({
 
   const handleDeckSelect = (deckId: string) => {
     if (userTeam) {
-      setTeamDeckMutation.mutate({
+      updateTeamMemberDeckMutation.mutate({
         tournamentId: tournament.id,
         teamId: userTeam.team.id,
         deckId: deckId === "none" ? "" : deckId,
@@ -307,11 +323,11 @@ export function TeamTournamentManager({
                           <Select
                             value={memberDeck?.deckId || "none"}
                             onValueChange={handleDeckSelect}
-                            disabled={setTeamDeckMutation.isPending}
+                            disabled={updateTeamMemberDeckMutation.isPending}
                           >
                             <SelectTrigger className="h-8 w-40 text-sm">
                               <SelectValue placeholder="Select deck">
-                                {memberDeck?.deckName || "Select deck"}
+                                {memberDeck?.deck?.name || "Select deck"}
                               </SelectValue>
                             </SelectTrigger>
                             <SelectContent>
@@ -325,30 +341,27 @@ export function TeamTournamentManager({
                           </Select>
                         )}
 
-                        {(isCreator || isCurrentUser) &&
-                          memberDeck?.deckName && (
-                            <Link
-                              href={`/deck/${tournament.id}/${memberDeck.deckId}`}
+                        {(isCreator || isCurrentUser) && memberDeck?.deck && (
+                          <Link
+                            href={`/deck/${tournament.id}/${memberDeck.deck.id}`}
+                          >
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 text-xs"
                             >
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 text-xs"
-                              >
-                                <Eye className="mr-1 h-3 w-3" />
-                                View
-                              </Button>
-                            </Link>
-                          )}
+                              <Eye className="mr-1 h-3 w-3" />
+                              View
+                            </Button>
+                          </Link>
+                        )}
 
-                        {!isCreator &&
-                          !isCurrentUser &&
-                          memberDeck?.deckName && (
-                            <Badge variant="outline" className="text-xs">
-                              <CreditCard className="mr-1 h-3 w-3" />
-                              {memberDeck.deckName}
-                            </Badge>
-                          )}
+                        {!isCreator && !isCurrentUser && memberDeck?.deck && (
+                          <Badge variant="outline" className="text-xs">
+                            <CreditCard className="mr-1 h-3 w-3" />
+                            {memberDeck.deck.name}
+                          </Badge>
+                        )}
 
                         {/* Management buttons */}
                         {member.role !== "leader" &&
@@ -622,20 +635,23 @@ export function TeamTournamentManager({
                   </div>
                   <div>
                     <span className="font-medium">Members:</span>{" "}
-                    {teamByCodeQuery.data.memberCount ?? 0} /{" "}
+                    {teamByCodeQuery.data.members?.length ?? 0} /{" "}
                     {tournament.teamSize}
                   </div>
                   <div>
                     <span className="font-medium">Team Members:</span>
                     <ul className="mt-1 ml-4 list-disc">
-                      {teamByCodeQuery.data.members.map(
-                        (member: { id: string; name: string | null }) => (
-                          <li key={member.id}>{member.name}</li>
+                      {teamByCodeQuery.data.members?.map(
+                        (member: {
+                          id: string;
+                          user: { name: string | null };
+                        }) => (
+                          <li key={member.id}>{member.user.name}</li>
                         ),
                       )}
                     </ul>
                   </div>
-                  {(teamByCodeQuery.data.memberCount ?? 0) >=
+                  {(teamByCodeQuery.data.members?.length ?? 0) >=
                     tournament.teamSize && (
                     <div className="font-medium text-red-600">
                       This team is full
@@ -681,7 +697,8 @@ export function TeamTournamentManager({
               disabled={
                 !joinCode.trim() ||
                 joinTeamMutation.isPending ||
-                (teamByCodeQuery.data?.memberCount ?? 0) >= tournament.teamSize
+                (teamByCodeQuery.data?.members?.length ?? 0) >=
+                  tournament.teamSize
               }
             >
               {joinTeamMutation.isPending ? "Joining..." : "Join Team"}

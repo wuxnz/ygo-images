@@ -10,14 +10,19 @@ export const teamRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      // Generate a unique team code
+      const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+
       const team = await ctx.db.team.create({
         data: {
           name: input.name,
           description: input.description,
+          code,
+          ownerId: ctx.session.user.id,
           members: {
             create: {
               userId: ctx.session.user.id,
-              role: "leader",
+              role: "admin",
             },
           },
         },
@@ -138,9 +143,9 @@ export const teamRouter = createTRPCRouter({
 
       return ctx.db.teamMember.delete({
         where: {
-          userId_teamId: {
-            userId: input.userId,
+          teamId_userId: {
             teamId: input.teamId,
+            userId: input.userId,
           },
         },
       });

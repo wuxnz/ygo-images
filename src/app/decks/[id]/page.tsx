@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CardImage } from "@/components/ui/card-image";
 import { Badge } from "@/components/ui/badge";
 import { parseYdk } from "@/lib/deckParser";
+import BackButton from "@/components/ui/back-button";
 
 interface DeckPageProps {
   params: { id: string };
@@ -189,11 +190,7 @@ export default async function DeckPage({ params }: DeckPageProps) {
           </Card>
         )}
 
-        <div className="mt-6">
-          <Link href="/dashboard/profile">
-            <Button variant="outline">← Back to Profile</Button>
-          </Link>
-        </div>
+        <BackButton />
       </div>
     </div>
   );

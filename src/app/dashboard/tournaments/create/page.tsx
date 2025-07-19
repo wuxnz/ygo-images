@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { TournamentForm } from "@/components/tournament-form";
 import { api } from "@/trpc/react";
 import { useRouter } from "next/navigation";
+import BackButton from "@/components/ui/back-button";
 
 export default function CreateTournamentPage() {
   const router = useRouter();
@@ -19,15 +20,26 @@ export default function CreateTournamentPage() {
         <h1 className="text-foreground! text-2xl font-bold">
           Create Tournament
         </h1>
-        <Button variant="outline" onClick={() => router.back()}>
-          Go Back
-        </Button>
+        <BackButton />
       </div>
 
       <div className="mt-6">
         <TournamentForm
           onSubmit={async (values) => {
-            await createMutation.mutateAsync(values);
+            await createMutation.mutateAsync({
+              name: values.name,
+              format: values.bracketType.toLowerCase() as
+                | "swiss"
+                | "round_robin"
+                | "single_elimination"
+                | "double_elimination",
+              maxPlayers: values.size,
+              startDate: values.startDate,
+              endDate: values.endDate,
+              prize: values.prize,
+              teamSize: values.teamSize,
+              description: values.rules,
+            });
           }}
           isSubmitting={createMutation.isPending}
         />

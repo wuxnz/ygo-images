@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CardImage } from "@/components/ui/card-image";
 import { Badge } from "@/components/ui/badge";
 import { parseYdk } from "@/lib/deckParser";
+import BackButton from "@/components/ui/back-button";
 
 interface DeckPageProps {
   params: { id: string; tournamentId: string };
@@ -38,15 +39,13 @@ export default async function DeckPage({ params }: DeckPageProps) {
   }
 
   // Fetch both deck and tournament in parallel
-
-  // Fetch both deck and tournament in parallel
   const [deck, tournament] = await Promise.all([
     db.deck.findFirst({
       where: { id },
     }),
     db.tournament.findFirst({
       where: { id: tournamentId },
-      select: { organizerId: true },
+      select: { creatorId: true },
     }),
   ]);
 
@@ -55,7 +54,7 @@ export default async function DeckPage({ params }: DeckPageProps) {
   // 2. User is the tournament creator
   const hasAccess =
     deck?.userId === session.user.id ||
-    tournament?.organizerId === session.user.id;
+    tournament?.creatorId === session.user.id;
 
   if (!deck || !hasAccess) {
     return (
@@ -71,9 +70,6 @@ export default async function DeckPage({ params }: DeckPageProps) {
         </Card>
       </div>
     );
-  }
-  if (!deck || !hasAccess) {
-    notFound();
   }
 
   // Attempt to fetch and parse the deck file.
@@ -215,11 +211,7 @@ export default async function DeckPage({ params }: DeckPageProps) {
           </Card>
         )}
 
-        <div className="mt-6">
-          <Link href="/dashboard/profile">
-            <Button variant="outline">← Back to Profile</Button>
-          </Link>
-        </div>
+        <BackButton />
       </div>
     </div>
   );

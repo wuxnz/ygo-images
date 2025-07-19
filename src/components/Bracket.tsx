@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { RoundRobinBracket } from "./RoundRobinBracket";
+import { SwissTournamentBracket } from "./tournament/SwissTournamentBracket";
 
 // Types for match and participant
 export interface BracketParticipant {
@@ -179,8 +180,23 @@ export const Bracket: React.FC<BracketProps> = ({
         participants={participants}
         isCreator={isCreator}
         onAdvanceWinner={onAdvanceWinner}
-        onResetMatch={onResetMatch}
-        onCompleteTournament={onCompleteTournament}
+        onResetMatch={onResetMatch || (() => {})}
+        onCompleteTournament={onCompleteTournament || (() => {})}
+      />
+    );
+  }
+
+  // Handle Swiss tournaments
+  if (bracketType === "SWISS") {
+    return (
+      <SwissTournamentBracket
+        tournamentId={matches[0]?.id?.split("-")[0] || ""} // Extract tournament ID from match ID
+        matches={matches}
+        participants={participants}
+        isCreator={isCreator}
+        onAdvanceWinner={onAdvanceWinner}
+        onResetMatch={onResetMatch || (() => {})}
+        onCompleteTournament={onCompleteTournament || (() => {})}
       />
     );
   }

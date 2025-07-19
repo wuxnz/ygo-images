@@ -32,17 +32,19 @@ export default function DashboardPage() {
   const { data: userDecks, isLoading: decksLoading } =
     api.deck.getUserDecks.useQuery();
   const { data: allTournaments, isLoading: tournamentsLoading } =
-    api.tournament.getAll.useQuery();
+    api.tournament.getAll.useQuery({});
+  const { data: userParticipations } =
+    api.tournament.getUserParticipations.useQuery();
 
   const userName = session?.user?.name || "User";
 
   // Filter tournaments for the current user
-  const userTournaments = allTournaments?.filter((t) =>
-    t.participants.some((p: any) => p.userId === session?.user?.id),
+  const userTournaments = allTournaments?.items.filter((t) =>
+    userParticipations?.some((p) => p.tournamentId === t.id),
   );
 
-  const createdTournaments = allTournaments?.filter(
-    (t) => t.organizerId === session?.user?.id,
+  const createdTournaments = allTournaments?.items.filter(
+    (t) => t.creatorId === session?.user?.id,
   );
 
   return (
@@ -85,7 +87,8 @@ export default function DashboardPage() {
               <Skeleton className="h-8 w-12" />
             ) : (
               <div className="text-2xl font-bold">
-                {userTournaments?.filter((t: any) => !t.completed).length || 0}
+                {userTournaments?.filter((t: any) => t.status === "active")
+                  .length || 0}
               </div>
             )}
           </CardContent>
@@ -121,7 +124,8 @@ export default function DashboardPage() {
               <Skeleton className="h-8 w-12" />
             ) : (
               <div className="text-2xl font-bold">
-                {userTournaments?.filter((t: any) => t.completed).length || 0}
+                {userTournaments?.filter((t: any) => t.status === "completed")
+                  .length || 0}
               </div>
             )}
           </CardContent>

@@ -23,8 +23,13 @@ export default function TournamentHistoryPage() {
     null,
   );
 
-  const { data: completedTournaments, isLoading } =
-    api.tournamentResults.getCompletedTournaments.useQuery();
+  const { data: tournamentsData, isLoading } = api.tournament.getAll.useQuery({
+    status: "completed",
+    limit: 100,
+  });
+
+  // Extract the actual tournaments array from the response
+  const completedTournaments = tournamentsData?.items || [];
 
   if (isLoading) {
     return (
@@ -77,7 +82,10 @@ export default function TournamentHistoryPage() {
                   {tournament.name}
                 </CardTitle>
                 <CardDescription>
-                  {format(new Date(tournament.endDate), "PPP")}
+                  {format(
+                    new Date(tournament.endDate || tournament.startDate),
+                    "PPP",
+                  )}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -87,30 +95,18 @@ export default function TournamentHistoryPage() {
                       Participants
                     </span>
                     <Badge variant="secondary">
-                      {tournament.results?.totalParticipants || 0}
+                      {tournament.participantCount || 0}
                     </Badge>
                   </div>
 
-                  {tournament.winner && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground text-sm">
-                        Winner
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <Avatar className="h-6 w-6">
-                          <AvatarImage
-                            src={tournament.winner?.image || undefined}
-                          />
-                          <AvatarFallback>
-                            {tournament.winner?.name?.charAt(0) || "?"}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span className="text-sm font-medium">
-                          {tournament.winner?.name || "Unknown"}
-                        </span>
-                      </div>
-                    </div>
-                  )}
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground text-sm">
+                      Format
+                    </span>
+                    <Badge variant="outline">
+                      {tournament.format.replace("_", " ").toUpperCase()}
+                    </Badge>
+                  </div>
                 </div>
               </CardContent>
               <CardFooter>

@@ -88,6 +88,7 @@ export async function POST(request: NextRequest) {
         fileUrl,
         fileSize: file.size,
         userId: session.user.id,
+        format: "YDK",
       },
     });
 

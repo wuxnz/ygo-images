@@ -68,6 +68,9 @@ importers:
       '@trpc/server':
         specifier: ^11.0.0
         version: 11.4.3(typescript@5.8.3)
+      '@types/ws':
+        specifier: ^8.18.1
+        version: 8.18.1
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -1540,6 +1543,9 @@ packages:
 
   '@types/uuid@9.0.8':
     resolution: {integrity: sha512-jg+97EGIcY9AGHJJRaaPVgetKDsrTgbRjQ5Msgjh/DQKEFl0DtyRr/VCOyD1T2R1MNeWPK/u7JoGhlDZnKBAfA==}
+
+  '@types/ws@8.18.1':
+    resolution: {integrity: sha512-ThVF6DCVhA8kUGy+aazFQ4kXQ7E1Ty7A3ypFOe0IcJV8O/M511G99AW24irKrW56Wt44yG9+ij8FaqoBGkuBXg==}
 
   '@typescript-eslint/eslint-plugin@8.37.0':
     resolution: {integrity: sha512-jsuVWeIkb6ggzB+wPCsR4e6loj+rM72ohW6IBn2C+5NCvfUVY8s33iFPySSVXqtm5Hu29Ne/9bnA0JmyLmgenA==}
@@ -4897,6 +4903,10 @@ snapshots:
       csstype: 3.1.3
 
   '@types/uuid@9.0.8': {}
+
+  '@types/ws@8.18.1':
+    dependencies:
+      '@types/node': 20.19.7
 
   '@typescript-eslint/eslint-plugin@8.37.0(@typescript-eslint/parser@8.37.0(eslint@9.31.0(jiti@2.4.2))(typescript@5.8.3))(eslint@9.31.0(jiti@2.4.2))(typescript@5.8.3)':
     dependencies:

@@ -48,9 +48,25 @@ export default function EditTournamentPage() {
       </div>
 
       <TournamentForm
-        defaultValues={tournament}
+        defaultValues={{
+          name: tournament.name,
+          size: tournament.maxPlayers,
+          teamSize: 1, // Default value since it's not in the tournament model
+          bracketType: tournament.format.toUpperCase().replace("-", "_"),
+          rules: tournament.description || "",
+          prize: "", // Default value since it's not in the tournament model
+          startDate: tournament.startDate,
+          endDate: tournament.endDate || undefined,
+        }}
         onSubmit={async (values) => {
-          await updateMutation.mutateAsync({ id, ...values });
+          await updateMutation.mutateAsync({
+            id,
+            name: values.name,
+            maxPlayers: values.size,
+            startDate: values.startDate,
+            endDate: values.endDate,
+            description: values.rules,
+          });
         }}
         isSubmitting={updateMutation.isPending}
       />

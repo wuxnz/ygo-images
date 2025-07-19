@@ -101,7 +101,9 @@ export default function TournamentHistoryDetailPage() {
         </h1>
         <p className="text-muted-foreground">
           Tournament Results •{" "}
-          {format(new Date(tournamentResults.tournament.endDate), "PPP")}
+          {tournamentResults.tournament.endDate
+            ? format(new Date(tournamentResults.tournament.endDate), "PPP")
+            : "Date TBD"}
         </p>
       </div>
 
@@ -111,8 +113,10 @@ export default function TournamentHistoryDetailPage() {
           <CardHeader>
             <CardTitle>Tournament Summary</CardTitle>
             <CardDescription>
-              {tournamentResults.tournament.size} participants • Completed on{" "}
-              {format(new Date(tournamentResults.tournament.endDate), "PPP")}
+              {tournamentResults.tournament.size || 0} participants
+              {tournamentResults.tournament.endDate
+                ? ` • Completed on ${format(new Date(tournamentResults.tournament.endDate), "PPP")}`
+                : ""}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -120,16 +124,16 @@ export default function TournamentHistoryDetailPage() {
               <div className="flex items-center gap-4">
                 <Avatar className="h-12 w-12">
                   <AvatarImage
-                    src={tournamentResults.winner.image || undefined}
+                    src={tournamentResults.winner.user.image || undefined}
                   />
                   <AvatarFallback>
-                    {tournamentResults.winner.name?.charAt(0) || "?"}
+                    {tournamentResults.winner.user.name?.charAt(0) || "?"}
                   </AvatarFallback>
                 </Avatar>
                 <div>
                   <p className="text-muted-foreground text-sm">Champion</p>
                   <p className="font-semibold">
-                    {tournamentResults.winner.name}
+                    {tournamentResults.winner.user.name}
                   </p>
                 </div>
               </div>

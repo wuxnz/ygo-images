@@ -68,9 +68,6 @@ export default async function ProfilePage() {
     );
   }
 
-  // Handle loading state
-  if (!user) return <div>Loading profile...</div>;
-
   const extendedUser = user as ExtendedUser;
 
   // Memoize stats calculation
@@ -82,14 +79,14 @@ export default async function ProfilePage() {
           userId: user.id,
         },
       }),
-      db.match.count({
+      db.tournamentMatch.count({
         where: {
           winnerId: user.id,
         },
       }),
       db.tournament.count({
         where: {
-          organizerId: user.id,
+          creatorId: user.id,
         },
       }),
       db.deck.findMany({
@@ -107,15 +104,7 @@ export default async function ProfilePage() {
     <div className="container mx-auto py-8">
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
-          <ProfileCard
-            user={{
-              id: extendedUser.id,
-              name: extendedUser.name,
-              email: extendedUser.email,
-              emailVerified: extendedUser.emailVerified,
-              image: extendedUser.image,
-            }}
-          />
+          <ProfileCard user={extendedUser} />
           <DecksCard decks={userDecks} />
         </div>
         <div className="space-y-6">
@@ -131,7 +120,7 @@ export default async function ProfilePage() {
   );
 }
 
-function ProfileCard({ user }: { user: User }) {
+function ProfileCard({ user }: { user: ExtendedUser }) {
   return (
     <Card className="md:col-span-2">
       <CardHeader>

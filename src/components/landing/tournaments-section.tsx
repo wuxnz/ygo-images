@@ -9,15 +9,15 @@ import { format } from "date-fns";
 import type { RouterOutputs } from "@/trpc/react";
 
 export function TournamentsSection() {
-  const { data: tournaments, isLoading } = api.tournament.getAll.useQuery();
+  const { data: tournaments, isLoading } = api.tournament.getAll.useQuery({});
 
   if (isLoading) return null;
-  if (!tournaments || tournaments.length === 0) return null;
+  if (!tournaments || tournaments.items.length === 0) return null;
 
-  type Tournament = RouterOutputs["tournament"]["getAll"][number];
+  type Tournament = RouterOutputs["tournament"]["getAll"]["items"][number];
 
   // Sort by startDate descending and take the latest 3
-  const latestTournaments = [...tournaments]
+  const latestTournaments = [...tournaments.items]
     .sort(
       (a, b) =>
         new Date(b.startDate).getTime() - new Date(a.startDate).getTime(),
@@ -34,15 +34,17 @@ export function TournamentsSection() {
   function getStatus(tournament: Tournament) {
     const now = new Date();
     if (new Date(tournament.startDate) > now) return "Upcoming";
-    if (new Date(tournament.endDate) < now) return "Completed";
+    if (tournament.endDate && new Date(tournament.endDate) < now)
+      return "Completed";
     return "Ongoing";
   }
 
   // Helper to format date range
-  function formatDateRange(start: Date | string, end: Date | string) {
+  function formatDateRange(start: Date | string, end: Date | string | null) {
     const startDate = new Date(start);
-    const endDate = new Date(end);
-    if (startDate.toDateString() === endDate.toDateString()) {
+    const endDate = end ? new Date(end) : null;
+
+    if (!endDate || startDate.toDateString() === endDate.toDateString()) {
       return format(startDate, "MMMM d, yyyy");
     }
     return `${format(startDate, "MMMM d, yyyy")} - ${format(endDate, "MMMM d, yyyy")}`;
@@ -91,9 +93,7 @@ export function TournamentsSection() {
                     <span className="text-gray-500 dark:text-gray-400">
                       Game:
                     </span>
-                    <span className="font-medium">
-                      {tournament.bracketType}
-                    </span>
+                    <span className="font-medium">{tournament.format}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-500 dark:text-gray-400">
@@ -110,7 +110,9 @@ export function TournamentsSection() {
                     <span className="text-gray-500 dark:text-gray-400">
                       Prize:
                     </span>
-                    <span className="font-medium">{tournament.prize}</span>
+                    <span className="font-medium">
+                      {tournament.prize || "No prize specified"}
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-500 dark:text-gray-400">

@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/form";
 import { CheckCircle, AlertCircle, Upload, ArrowLeft } from "lucide-react";
 import Link from "next/link";
+import BackButton from "@/components/ui/back-button";
 
 const deckSchema = z.object({
   name: z
@@ -185,10 +186,7 @@ export default function DeckUploadPage() {
         {/* Header */}
         <div className="mb-8">
           <Button variant="ghost" asChild className="mb-4">
-            <Link href="/dashboard/profile">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Profile
-            </Link>
+            <BackButton />
           </Button>
           <div className="text-center">
             <h1 className="mb-2 text-3xl font-bold">Upload Yu-Gi-Oh Deck</h1>
