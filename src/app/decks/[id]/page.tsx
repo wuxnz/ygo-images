@@ -23,8 +23,9 @@ export default async function DeckPage({ params }: DeckPageProps) {
   const { id } = await params;
 
   // Validate MongoDB ObjectID format
-  const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(id);
+  const isValidObjectId = /[0-9a-zA-Z]/.test(id);
   if (!isValidObjectId) {
+    console.log("Invalid deck ID:", id);
     notFound();
   }
 
@@ -36,6 +37,7 @@ export default async function DeckPage({ params }: DeckPageProps) {
   });
 
   if (!deck) {
+    console.log("Deck not found:", id);
     notFound();
   }
 
@@ -43,7 +45,7 @@ export default async function DeckPage({ params }: DeckPageProps) {
   let parsed: ReturnType<typeof parseYdk> | null = null;
   try {
     // Use a proxy endpoint to avoid CORS issues
-    const proxyUrl = `/api/proxy-deck?url=${encodeURIComponent(deck.fileUrl)}`;
+    const proxyUrl = deck.fileUrl;
     const res = await fetch(proxyUrl, { cache: "no-store" });
     if (res.ok) {
       const text = await res.text();
@@ -62,6 +64,9 @@ export default async function DeckPage({ params }: DeckPageProps) {
   } catch {
     // ignore errors, keep parsed null
   }
+
+  console.log("Deck File URL:", deck.fileUrl);
+  console.log("Deck parsed:", parsed);
 
   return (
     <div className="container mx-auto py-8">
