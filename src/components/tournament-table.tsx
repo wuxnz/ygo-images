@@ -69,10 +69,12 @@ export function TournamentTable({
               {tournament.format.replace("_", " ")}
             </TableCell>
             <TableCell className="capitalize">{tournament.status}</TableCell>
-            <TableCell>{format(tournament.startDate, "MMM d, yyyy")}</TableCell>
+            <TableCell>
+              {format(new Date(tournament.startDate), "MMM d, yyyy")}
+            </TableCell>
             <TableCell>
               {tournament.endDate
-                ? format(tournament.endDate, "MMM d, yyyy")
+                ? format(new Date(tournament.endDate), "MMM d, yyyy")
                 : "N/A"}
             </TableCell>
             <TableCell>{tournament.participantCount}</TableCell>

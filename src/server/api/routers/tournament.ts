@@ -47,28 +47,84 @@ export const tournamentRouter = createTRPCRouter({
     )
     .query(async ({ input, ctx }) => {
       const { limit, cursor, status } = input;
-      const items = await ctx.db.tournament.findMany({
-        take: limit + 1,
-        cursor: cursor ? { id: cursor } : undefined,
-        orderBy: {
-          createdAt: "desc",
-        },
-        where: {
-          ...(status && { status }),
-        },
-        include: {
-          creator: true,
-          participants: {
-            include: {
-              user: true,
-            },
-          },
-          _count: {
-            select: {
-              participants: true,
-            },
+
+      // MongoDB aggregation pipeline
+      const pipeline: any[] = [
+        // Match by status if provided
+        ...(status ? [{ $match: { status } }] : []),
+
+        // Lookup creator details from User collection
+        {
+          $lookup: {
+            from: "User",
+            localField: "creatorId",
+            foreignField: "id",
+            as: "creator",
           },
         },
+        { $unwind: { path: "$creator", preserveNullAndEmptyArrays: true } },
+
+        // Lookup participants
+        {
+          $lookup: {
+            from: "TournamentParticipant",
+            localField: "id",
+            foreignField: "tournamentId",
+            as: "participants",
+          },
+        },
+
+        // Add participant count
+        { $addFields: { participant_count: { $size: "$participants" } } },
+
+        // Sort by creation date
+        { $sort: { createdAt: -1 } },
+
+        // Pagination
+        { $limit: limit + 1 },
+        ...(cursor ? [{ $skip: parseInt(cursor) }] : []),
+      ];
+
+      const tournaments = (await ctx.db.tournament.aggregateRaw({
+        pipeline: pipeline,
+      })) as unknown as any[];
+
+      // Convert raw MongoDB documents to expected format
+      const items = tournaments.map((t: any) => {
+        // Convert date strings to Date objects
+        const startDate = new Date(t.startDate);
+        const endDate = t.endDate ? new Date(t.endDate) : null;
+        const createdAt = new Date(t.createdAt);
+        const updatedAt = new Date(t.updatedAt);
+
+        return {
+          id: t.id,
+          name: t.name,
+          description: t.description,
+          format: t.format,
+          maxPlayers: t.maxPlayers,
+          status: t.status,
+          startDate: startDate,
+          endDate: endDate,
+          prize: t.prize,
+          teamSize: t.teamSize,
+          createdAt: createdAt,
+          updatedAt: updatedAt,
+          creator: t.creator
+            ? {
+                id: t.creator.id,
+                name: t.creator.name,
+                email: t.creator.email,
+                image: t.creator.image,
+              }
+            : {
+                id: "deleted-user",
+                name: "Deleted User",
+                email: null,
+                image: null,
+              },
+          participantCount: t.participant_count,
+        };
       });
 
       let nextCursor: typeof cursor | undefined = undefined;
@@ -78,22 +134,7 @@ export const tournamentRouter = createTRPCRouter({
       }
 
       return {
-        items: items.map((tournament) => {
-          // Handle cases where creator might be null (if user was deleted)
-          const creator = tournament.creator || {
-            id: "deleted-user",
-            name: "Deleted User",
-            email: null,
-            image: null,
-          };
-
-          return {
-            ...tournament,
-            creator,
-            createdAt: tournament.createdAt || new Date(0),
-            participantCount: tournament._count.participants,
-          };
-        }),
+        items,
         nextCursor,
       };
     }),
