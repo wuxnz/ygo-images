@@ -70,11 +70,17 @@ export function TournamentTable({
             </TableCell>
             <TableCell className="capitalize">{tournament.status}</TableCell>
             <TableCell>
-              {format(new Date(tournament.startDate), "MMM d, yyyy")}
+              {tournament.startDate &&
+              typeof tournament.startDate === "object" &&
+              "$date" in tournament.startDate
+                ? format(new Date(tournament.startDate.$date), "MMM d, yyyy")
+                : "N/A"}
             </TableCell>
             <TableCell>
-              {tournament.endDate
-                ? format(new Date(tournament.endDate), "MMM d, yyyy")
+              {tournament.endDate &&
+              typeof tournament.endDate === "object" &&
+              "$date" in tournament.endDate
+                ? format(new Date(tournament.endDate.$date), "MMM d, yyyy")
                 : "N/A"}
             </TableCell>
             <TableCell>{tournament.participantCount}</TableCell>

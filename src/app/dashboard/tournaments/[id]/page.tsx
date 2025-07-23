@@ -80,15 +80,18 @@ export default function TournamentDetailPage() {
     },
   });
 
-  // Fetch matches if tournament is started
-  const {
-    data: matches,
-    isLoading: matchesLoading,
-    refetch: refetchMatches,
-  } = api.match.getByTournament.useQuery(
-    { tournamentId: id },
-    { enabled: !!tournament && tournament.status === "active" },
-  );
+  // Use matches from tournament data instead of separate query
+  const matches =
+    tournament?.rounds?.flatMap((round) =>
+      round.matches.map((match) => ({
+        ...match,
+        round: round.roundNumber,
+      })),
+    ) ?? [];
+  const matchesLoading = false;
+  const refetchMatches = () => {
+    utils.tournament.getById.invalidate({ id });
+  };
 
   const startMutation = api.tournamentSwiss.startSwissTournament.useMutation({
     onSuccess: () => {
@@ -100,7 +103,18 @@ export default function TournamentDetailPage() {
       setBracketError(err instanceof Error ? err.message : String(err)),
   });
 
-  const advanceWinnerMutation = api.match.update.useMutation({
+  // Create separate mutations for different tournament formats
+  const advanceWinnerSwissMutation =
+    api.tournamentSwiss.generateSwissPairings.useMutation({
+      onSuccess: () => {
+        refetchMatches();
+        setBracketError(null);
+      },
+      onError: (err) =>
+        setBracketError(err instanceof Error ? err.message : String(err)),
+    });
+
+  const advanceWinnerEliminationMutation = api.match.update.useMutation({
     onSuccess: () => {
       refetchMatches();
       setBracketError(null);
@@ -109,7 +123,57 @@ export default function TournamentDetailPage() {
       setBracketError(err instanceof Error ? err.message : String(err)),
   });
 
-  const advanceAllWinnersMutation = api.match.advanceAllWinners.useMutation({
+  const advanceAllWinnersSwissMutation =
+    api.tournamentSwiss.generateSwissPairings.useMutation({
+      onSuccess: () => {
+        refetchMatches();
+        setBracketError(null);
+      },
+      onError: (err) =>
+        setBracketError(err instanceof Error ? err.message : String(err)),
+    });
+
+  const advanceAllWinnersEliminationMutation =
+    api.match.advanceAllWinners.useMutation({
+      onSuccess: () => {
+        refetchMatches();
+        setBracketError(null);
+      },
+      onError: (err) =>
+        setBracketError(err instanceof Error ? err.message : String(err)),
+    });
+
+  const reshuffleBracketSwissMutation =
+    api.tournamentSwiss.generateSwissPairings.useMutation({
+      onSuccess: () => {
+        refetchMatches();
+        setBracketError(null);
+      },
+      onError: (err) =>
+        setBracketError(err instanceof Error ? err.message : String(err)),
+    });
+
+  const reshuffleBracketEliminationMutation =
+    api.match.reshuffleBracket.useMutation({
+      onSuccess: () => {
+        refetchMatches();
+        setBracketError(null);
+      },
+      onError: (err) =>
+        setBracketError(err instanceof Error ? err.message : String(err)),
+    });
+
+  const resetMatchSwissMutation =
+    api.tournamentSwiss.generateSwissPairings.useMutation({
+      onSuccess: () => {
+        refetchMatches();
+        setBracketError(null);
+      },
+      onError: (err) =>
+        setBracketError(err instanceof Error ? err.message : String(err)),
+    });
+
+  const resetMatchEliminationMutation = api.match.resetMatch.useMutation({
     onSuccess: () => {
       refetchMatches();
       setBracketError(null);
@@ -118,7 +182,17 @@ export default function TournamentDetailPage() {
       setBracketError(err instanceof Error ? err.message : String(err)),
   });
 
-  const reshuffleBracketMutation = api.match.reshuffleBracket.useMutation({
+  const resetRoundSwissMutation =
+    api.tournamentSwiss.generateSwissPairings.useMutation({
+      onSuccess: () => {
+        refetchMatches();
+        setBracketError(null);
+      },
+      onError: (err) =>
+        setBracketError(err instanceof Error ? err.message : String(err)),
+    });
+
+  const resetRoundEliminationMutation = api.match.resetRound.useMutation({
     onSuccess: () => {
       refetchMatches();
       setBracketError(null);
@@ -127,25 +201,7 @@ export default function TournamentDetailPage() {
       setBracketError(err instanceof Error ? err.message : String(err)),
   });
 
-  const resetMatchMutation = api.match.resetMatch.useMutation({
-    onSuccess: () => {
-      refetchMatches();
-      setBracketError(null);
-    },
-    onError: (err) =>
-      setBracketError(err instanceof Error ? err.message : String(err)),
-  });
-
-  const resetRoundMutation = api.match.resetRound.useMutation({
-    onSuccess: () => {
-      refetchMatches();
-      setBracketError(null);
-    },
-    onError: (err) =>
-      setBracketError(err instanceof Error ? err.message : String(err)),
-  });
-
-  const completeTournamentMutation =
+  const completeTournamentSwissMutation =
     api.tournamentSwiss.completeSwissTournament.useMutation({
       onSuccess: () => {
         router.push("/dashboard/tournaments");
@@ -355,24 +411,48 @@ export default function TournamentDetailPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() =>
-                    advanceAllWinnersMutation.mutate({ tournamentId: id })
+                  onClick={() => {
+                    if (tournament?.format === "SWISS") {
+                      advanceAllWinnersSwissMutation.mutate({
+                        tournamentId: id,
+                      });
+                    } else {
+                      advanceAllWinnersEliminationMutation.mutate({
+                        tournamentId: id,
+                      });
+                    }
+                  }}
+                  disabled={
+                    tournament?.format === "SWISS"
+                      ? advanceAllWinnersSwissMutation.isPending
+                      : advanceAllWinnersEliminationMutation.isPending
                   }
-                  disabled={advanceAllWinnersMutation.isPending}
                 >
-                  {advanceAllWinnersMutation.isPending
-                    ? "Advancing..."
-                    : "Advance All Winners"}
+                  {tournament?.format === "SWISS"
+                    ? advanceAllWinnersSwissMutation.isPending
+                      ? "Advancing..."
+                      : "Advance All Winners"
+                    : advanceAllWinnersEliminationMutation.isPending
+                      ? "Advancing..."
+                      : "Advance All Winners"}
                 </Button>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => setReshuffleDialogOpen(true)}
-                  disabled={reshuffleBracketMutation.isPending}
+                  disabled={
+                    tournament?.format === "SWISS"
+                      ? reshuffleBracketSwissMutation.isPending
+                      : reshuffleBracketEliminationMutation.isPending
+                  }
                 >
-                  {reshuffleBracketMutation.isPending
-                    ? "Reshuffling..."
-                    : "Reshuffle Bracket"}
+                  {tournament?.format === "SWISS"
+                    ? reshuffleBracketSwissMutation.isPending
+                      ? "Reshuffling..."
+                      : "Reshuffle Bracket"
+                    : reshuffleBracketEliminationMutation.isPending
+                      ? "Reshuffling..."
+                      : "Reshuffle Bracket"}
                 </Button>
                 {matches &&
                   matches.length > 0 &&
@@ -381,9 +461,9 @@ export default function TournamentDetailPage() {
                       variant="default"
                       size="sm"
                       onClick={() => setCompleteDialogOpen(true)}
-                      disabled={completeTournamentMutation.isPending}
+                      disabled={completeTournamentSwissMutation.isPending}
                     >
-                      {completeTournamentMutation.isPending
+                      {completeTournamentSwissMutation.isPending
                         ? "Completing..."
                         : "Complete Tournament"}
                     </Button>
@@ -425,17 +505,25 @@ export default function TournamentDetailPage() {
                 }
                 isCreator={isCreator}
                 onAdvanceWinner={(matchId: string, winnerId: string) => {
-                  advanceWinnerMutation.mutate({
-                    id: matchId,
-                    winnerId,
-                    status: "COMPLETED",
-                  });
+                  if (tournament?.format === "SWISS") {
+                    advanceWinnerSwissMutation.mutate({ tournamentId: id });
+                  } else {
+                    advanceWinnerEliminationMutation.mutate({
+                      id: matchId,
+                      winnerId,
+                      status: "COMPLETED",
+                    });
+                  }
                 }}
                 onResetMatch={(matchId: string) => {
-                  resetMatchMutation.mutate({ matchId });
+                  if (tournament?.format === "SWISS") {
+                    resetMatchSwissMutation.mutate({ tournamentId: id });
+                  } else {
+                    resetMatchEliminationMutation.mutate({ matchId });
+                  }
                 }}
                 onCompleteTournament={() => {
-                  completeTournamentMutation.mutate({ tournamentId: id });
+                  completeTournamentSwissMutation.mutate({ tournamentId: id });
                 }}
               />
             ) : (
@@ -464,20 +552,35 @@ export default function TournamentDetailPage() {
                 bracketType={tournament.format}
                 isCreator={isCreator}
                 onAdvanceWinner={(matchId: string, winnerId: string) => {
-                  advanceWinnerMutation.mutate({
-                    id: matchId,
-                    winnerId,
-                    status: "COMPLETED",
-                  });
+                  if (tournament?.format === "SWISS") {
+                    advanceWinnerSwissMutation.mutate({ tournamentId: id });
+                  } else {
+                    advanceWinnerEliminationMutation.mutate({
+                      id: matchId,
+                      winnerId,
+                      status: "COMPLETED",
+                    });
+                  }
                 }}
                 onResetMatch={(matchId: string) => {
-                  resetMatchMutation.mutate({ matchId });
+                  if (tournament?.format === "SWISS") {
+                    resetMatchSwissMutation.mutate({ tournamentId: id });
+                  } else {
+                    resetMatchEliminationMutation.mutate({ matchId });
+                  }
                 }}
                 onResetRound={(round: number) => {
-                  resetRoundMutation.mutate({ tournamentId: id, round });
+                  if (tournament?.format === "SWISS") {
+                    resetRoundSwissMutation.mutate({ tournamentId: id });
+                  } else {
+                    resetRoundEliminationMutation.mutate({
+                      tournamentId: id,
+                      round,
+                    });
+                  }
                 }}
                 onCompleteTournament={() => {
-                  completeTournamentMutation.mutate({ tournamentId: id });
+                  completeTournamentSwissMutation.mutate({ tournamentId: id });
                 }}
               />
             )
@@ -534,7 +637,13 @@ export default function TournamentDetailPage() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
-                reshuffleBracketMutation.mutate({ tournamentId: id });
+                if (tournament?.format === "SWISS") {
+                  reshuffleBracketSwissMutation.mutate({ tournamentId: id });
+                } else {
+                  reshuffleBracketEliminationMutation.mutate({
+                    tournamentId: id,
+                  });
+                }
                 setReshuffleDialogOpen(false);
               }}
             >
@@ -561,7 +670,7 @@ export default function TournamentDetailPage() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
-                completeTournamentMutation.mutate({ tournamentId: id });
+                completeTournamentSwissMutation.mutate({ tournamentId: id });
                 setCompleteDialogOpen(false);
               }}
             >

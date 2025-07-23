@@ -38,24 +38,17 @@ export default function MyTournamentsPage() {
   const { data: tournaments, isLoading } = api.tournament.getAll.useQuery({});
 
   // Filter tournaments based on user involvement
-  const myTournaments = tournaments?.items.filter((tournament) => {
-    const isCreator = tournament.creatorId === session?.user?.id;
-    const isParticipant = tournament.participants.some(
-      (p: any) => p.userId === session?.user?.id,
-    );
-    return isCreator || isParticipant;
-  });
+  const myTournaments = tournaments?.items.filter(
+    (tournament) => tournament.creator.id === session?.user?.id,
+  );
 
   const filteredTournaments = myTournaments?.filter((tournament) =>
     tournament.name.toLowerCase().includes(searchTerm.toLowerCase()),
   );
 
   const createdTournaments =
-    filteredTournaments?.filter((t) => t.creatorId === session?.user?.id) || [];
-  const participatingTournaments =
-    filteredTournaments?.filter((t) =>
-      t.participants.some((p: any) => p.userId === session?.user?.id),
-    ) || [];
+    filteredTournaments?.filter((t) => t.creator.id === session?.user?.id) ||
+    [];
 
   const getStatusBadge = (tournament: any) => {
     if (tournament.status === "completed") {
@@ -68,7 +61,7 @@ export default function MyTournamentsPage() {
   };
 
   const TournamentCard = ({ tournament }: { tournament: any }) => {
-    const isCreator = tournament.creatorId === session?.user?.id;
+    const isCreator = tournament.creator.id === session?.user?.id;
 
     return (
       <Card className="flex flex-col">
@@ -259,9 +252,6 @@ export default function MyTournamentsPage() {
           <TabsTrigger value="created">
             Created ({createdTournaments.length})
           </TabsTrigger>
-          <TabsTrigger value="participating">
-            Participating ({participatingTournaments.length})
-          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="all">
@@ -282,18 +272,6 @@ export default function MyTournamentsPage() {
           ) : (
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               {createdTournaments.map((tournament) => (
-                <TournamentCard key={tournament.id} tournament={tournament} />
-              ))}
-            </div>
-          )}
-        </TabsContent>
-
-        <TabsContent value="participating">
-          {participatingTournaments.length === 0 ? (
-            <EmptyState type="participating" />
-          ) : (
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {participatingTournaments.map((tournament) => (
                 <TournamentCard key={tournament.id} tournament={tournament} />
               ))}
             </div>

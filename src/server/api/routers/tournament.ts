@@ -53,6 +53,9 @@ export const tournamentRouter = createTRPCRouter({
         // Match by status if provided
         ...(status ? [{ $match: { status } }] : []),
 
+        // Ensure _id is included and mapped to id
+        { $addFields: { id: "$_id" } },
+
         // Lookup creator details from User collection
         {
           $lookup: {
@@ -91,11 +94,27 @@ export const tournamentRouter = createTRPCRouter({
 
       // Convert raw MongoDB documents to expected format
       const items = tournaments.map((t: any) => {
-        // Convert date strings to Date objects
-        const startDate = new Date(t.startDate);
-        const endDate = t.endDate ? new Date(t.endDate) : null;
-        const createdAt = new Date(t.createdAt);
-        const updatedAt = new Date(t.updatedAt);
+        // Convert date strings to Date objects with validation
+        // Extract date strings directly from the MongoDB document
+        const startDate = t.startDate;
+        const endDate = t.endDate;
+        const createdAt = t.createdAt;
+        const updatedAt = t.updatedAt;
+
+        // Validate dates to avoid "Invalid Date" objects
+        const isValidDate = (date: any) =>
+          date && typeof date === "string" && !isNaN(new Date(date).getTime());
+
+        const validStartDate = isValidDate(startDate)
+          ? new Date(startDate)
+          : null;
+        const validEndDate = isValidDate(endDate) ? new Date(endDate) : null;
+        const validCreatedAt = isValidDate(createdAt)
+          ? new Date(createdAt)
+          : null;
+        const validUpdatedAt = isValidDate(updatedAt)
+          ? new Date(updatedAt)
+          : null;
 
         return {
           id: t.id,
@@ -1345,12 +1364,19 @@ export const tournamentRouter = createTRPCRouter({
           creatorId: participation.tournament.creatorId,
           createdAt: participation.tournament.createdAt,
           updatedAt: participation.tournament.updatedAt,
-          creator: {
-            id: participation.tournament.creator.id,
-            name: participation.tournament.creator.name,
-            email: participation.tournament.creator.email,
-            image: participation.tournament.creator.image,
-          },
+          creator: participation.tournament.creator
+            ? {
+                id: participation.tournament.creator.id,
+                name: participation.tournament.creator.name,
+                email: participation.tournament.creator.email,
+                image: participation.tournament.creator.image,
+              }
+            : {
+                id: "deleted-user",
+                name: "Deleted User",
+                email: null,
+                image: null,
+              },
           _count: {
             participants: participation.tournament._count.participants,
           },
