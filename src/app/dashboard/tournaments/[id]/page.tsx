@@ -302,23 +302,22 @@ export default function TournamentDetailPage() {
       </Card>
 
       <div className="flex gap-2">
-        {isCreator && (
+        {isCreator ? (
           <>
-            {/* Start Tournament Button */}
-            {tournament.status === "upcoming" &&
-              (tournament.participants?.length ?? 0) >= 2 && (
-                <Button
-                  onClick={() => startMutation.mutate({ id })}
-                  disabled={
-                    startMutation.isPending ||
-                    (tournament.participants?.length ?? 0) < 2
-                  }
-                  variant="default"
-                  className="text-foreground!"
-                >
-                  {startMutation.isPending ? "Starting..." : "Start Tournament"}
-                </Button>
-              )}
+            {/* Start Tournament Button - always show for creator when upcoming */}
+            {tournament.status === "upcoming" && (
+              <Button
+                onClick={() => startMutation.mutate({ id })}
+                disabled={
+                  startMutation.isPending ||
+                  (tournament.participants?.length ?? 0) < 2
+                }
+                variant="default"
+                className="text-foreground!"
+              >
+                {startMutation.isPending ? "Starting..." : "Start Tournament"}
+              </Button>
+            )}
             <Button
               onClick={() => router.push(`/dashboard/tournaments/${id}/edit`)}
               className="text-foreground! bg-secondary"
@@ -334,61 +333,64 @@ export default function TournamentDetailPage() {
               {deleteMutation.isPending ? "Deleting..." : "Delete Tournament"}
             </Button>
           </>
-        )}
-        {/* Individual tournament join button */}
-        {!isCreator && !isParticipant && (tournament.teamSize ?? 1) <= 1 && (
-          <Button
-            onClick={handleJoin}
-            disabled={joinMutation.isPending}
-            className="text-foreground!"
-          >
-            {joinMutation.isPending ? "Joining..." : "Join Tournament"}
-          </Button>
-        )}
-        {!isCreator && isParticipant && (tournament.teamSize ?? 1) <= 1 && (
-          <div className="space-y-4">
-            <Button variant="secondary" disabled>
-              Already Joined
-            </Button>
-
-            <Form {...form}>
-              <form
-                onSubmit={form.handleSubmit((data) =>
-                  updateParticipantDeck.mutate({
-                    tournamentId: id,
-                    deckId: data.deckId,
-                  }),
-                )}
-                className="space-y-4"
+        ) : (
+          <>
+            {/* Individual tournament join button - only for non-creators */}
+            {!isParticipant && (tournament.teamSize ?? 1) <= 1 && (
+              <Button
+                onClick={handleJoin}
+                disabled={joinMutation.isPending}
+                className="text-foreground!"
               >
-                <Select
-                  onValueChange={(value) => form.setValue("deckId", value)}
-                  value={
-                    tournament.participants.find(
-                      (p) => p.userId === session?.user?.id,
-                    )?.deckId || undefined
-                  }
-                >
-                  <SelectTrigger className="w-[180px]">
-                    <SelectValue placeholder="Select a deck" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {getDecks.data?.map((deck) => (
-                      <SelectItem key={deck.id} value={deck.id}>
-                        {deck.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button
-                  type="submit"
-                  disabled={updateParticipantDeck.isPending}
-                >
-                  Save Deck Choice
+                {joinMutation.isPending ? "Joining..." : "Join Tournament"}
+              </Button>
+            )}
+            {isParticipant && (tournament.teamSize ?? 1) <= 1 && (
+              <div className="space-y-4">
+                <Button variant="secondary" disabled>
+                  Already Joined
                 </Button>
-              </form>
-            </Form>
-          </div>
+
+                <Form {...form}>
+                  <form
+                    onSubmit={form.handleSubmit((data) =>
+                      updateParticipantDeck.mutate({
+                        tournamentId: id,
+                        deckId: data.deckId,
+                      }),
+                    )}
+                    className="space-y-4"
+                  >
+                    <Select
+                      onValueChange={(value) => form.setValue("deckId", value)}
+                      value={
+                        tournament.participants.find(
+                          (p) => p.userId === session?.user?.id,
+                        )?.deckId || undefined
+                      }
+                    >
+                      <SelectTrigger className="w-[180px]">
+                        <SelectValue placeholder="Select a deck" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {getDecks.data?.map((deck) => (
+                          <SelectItem key={deck.id} value={deck.id}>
+                            {deck.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      type="submit"
+                      disabled={updateParticipantDeck.isPending}
+                    >
+                      Save Deck Choice
+                    </Button>
+                  </form>
+                </Form>
+              </div>
+            )}
+          </>
         )}
       </div>
 
