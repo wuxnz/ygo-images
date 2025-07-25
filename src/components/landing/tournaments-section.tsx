@@ -40,14 +40,30 @@ export function TournamentsSection() {
   }
 
   // Helper to format date range
-  function formatDateRange(start: Date | string, end: Date | string | null) {
-    const startDate = new Date(start);
-    const endDate = end ? new Date(end) : null;
+  function formatDateRange(
+    start: Date | string | { $date: string } | null,
+    end: Date | string | { $date: string } | null,
+  ) {
+    // Helper to extract date from various formats
+    const parseDate = (
+      date: Date | string | { $date: string } | null,
+    ): Date | null => {
+      if (!date) return null;
+      if (date instanceof Date) return date;
+      if (typeof date === "string") return new Date(date);
+      if (typeof date === "object" && "$date" in date)
+        return new Date(date.$date);
+      return null;
+    };
 
+    const startDate = parseDate(start);
+    const endDate = parseDate(end);
+
+    if (!startDate) return "N/A";
     if (!endDate || startDate.toDateString() === endDate.toDateString()) {
-      return format(startDate, "MMMM d, yyyy");
+      return format(startDate, "MMM d, yyyy");
     }
-    return `${format(startDate, "MMMM d, yyyy")} - ${format(endDate, "MMMM d, yyyy")}`;
+    return `${format(startDate, "MMM d, yyyy")} - ${format(endDate, "MMM d, yyyy")}`;
   }
 
   return (
@@ -119,7 +135,7 @@ export function TournamentsSection() {
                       Participants:
                     </span>
                     <span className="font-medium">
-                      {tournament.participants?.length ?? 0}
+                      {tournament.participantCount ?? 0}
                     </span>
                   </div>
                   <Button asChild className="text-foreground mt-4 w-full">

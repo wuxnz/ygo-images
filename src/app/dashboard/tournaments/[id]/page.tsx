@@ -309,7 +309,10 @@ export default function TournamentDetailPage() {
               (tournament.participants?.length ?? 0) >= 2 && (
                 <Button
                   onClick={() => startMutation.mutate({ id })}
-                  disabled={startMutation.isPending}
+                  disabled={
+                    startMutation.isPending ||
+                    (tournament.participants?.length ?? 0) < 2
+                  }
                   variant="default"
                   className="text-foreground!"
                 >
@@ -399,6 +402,29 @@ export default function TournamentDetailPage() {
             utils.tournament.getById.invalidate({ id });
           }}
         />
+      )}
+
+      {/* Participant List - Show for all tournament types */}
+      {tournament.participants && tournament.participants.length > 0 && (
+        <div className="mt-8">
+          <h2 className="mb-4 text-xl font-bold">Participants</h2>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {tournament.participants.map((participant) => (
+              <TournamentParticipantCard
+                key={participant.id}
+                participant={participant}
+                isCreator={isCreator}
+                currentUserId={session?.user?.id}
+                onKickSuccess={() => {
+                  utils.tournament.getById.invalidate({ id });
+                }}
+                onBanSuccess={() => {
+                  utils.tournament.getById.invalidate({ id });
+                }}
+              />
+            ))}
+          </div>
+        </div>
       )}
 
       {/* Bracket Section */}
